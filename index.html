@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vault.OS - Firebase Cloud Sync</title>
+    <title>Vault.OS - Google Cloud Sync</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
         :root {
@@ -22,6 +24,7 @@
         .tech-font { font-family: 'JetBrains Mono', monospace; }
         .loading-overlay { background: rgba(2, 6, 23, 0.9); z-index: 1000; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        .input-glow:focus { box-shadow: 0 0 15px rgba(99, 102, 241, 0.2); border-color: rgba(99, 102, 241, 0.5); }
         #drop-zone.dragover { border-color: #6366f1; background: rgba(99, 102, 241, 0.1); }
     </style>
 </head>
@@ -32,10 +35,23 @@
         SYSTEM_NOTIFICATION
     </div>
 
+    <!-- 詢問視窗 (Custom Modal) -->
+    <div id="confirmModal" class="hidden fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div class="glass p-8 rounded-3xl w-full max-w-sm border border-white/10 text-center">
+            <i class="fas fa-exclamation-triangle text-amber-500 text-3xl mb-4"></i>
+            <h3 class="text-white font-bold mb-2">確認刪除分類？</h3>
+            <p id="confirmMessage" class="text-xs text-slate-400 mb-6 leading-relaxed">該分類下的所有項目將被移至「未分類」。</p>
+            <div class="flex gap-4">
+                <button id="cancelConfirm" class="flex-1 py-3 bg-white/5 rounded-xl text-xs font-bold tech-font">CANCEL</button>
+                <button id="executeConfirm" class="flex-1 py-3 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold tech-font">DELETE</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 載入中遮罩 -->
     <div id="loading" class="hidden fixed inset-0 flex flex-col items-center justify-center loading-overlay">
         <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p id="loading-text" class="tech-font tracking-widest text-indigo-400 uppercase">Initializing_Secure_Vault...</p>
+        <p id="loading-text" class="tech-font tracking-widest text-indigo-400 uppercase">Syncing_with_Cloud...</p>
     </div>
 
     <!-- 左側側邊欄 -->
@@ -43,21 +59,21 @@
         <div class="p-8">
             <div class="flex items-center gap-4 mb-2">
                 <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-[0_0_20px_rgba(79,70,229,0.4)]">
-                    <i class="fas fa-database"></i>
+                    <i class="fas fa-cloud"></i>
                 </div>
-                <h1 class="text-xl font-bold tracking-widest text-white">VAULT<span class="text-indigo-500">.DB</span></h1>
+                <h1 class="text-xl font-bold tracking-widest text-white">VAULT<span class="text-indigo-500">.GS</span></h1>
             </div>
-            <p class="text-[10px] text-slate-500 tech-font">FIRESTORE_SECURE_MODE</p>
+            <p class="text-[10px] text-slate-500 tech-font">CLOUD_SYNC_ENABLED</p>
         </div>
 
         <div class="px-6 py-2 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            <span>分類區塊 / SECTORS</span>
-            <button onclick="document.getElementById('addCategoryModal').classList.remove('hidden')" class="hover:text-indigo-400 transition">
+            <span>系統分類 / SECTORS</span>
+            <button onclick="showAddCategoryModal()" class="hover:text-indigo-400 transition">
                 <i class="fas fa-plus-circle text-xs"></i>
             </button>
         </div>
 
-        <nav class="flex-1 px-4 space-y-1 overflow-y-auto no-scrollbar">
+        <nav class="flex-1 px-4 space-y-1 overflow-y-auto no-scrollbar" id="category-list-nav">
             <button onclick="filterByCategory('全部')" id="btn-filter-all" class="sidebar-item active w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all group">
                 <span class="flex items-center gap-3"><i class="fas fa-layer-group"></i> 全部節點</span>
                 <span class="text-[10px] tech-font opacity-40" id="total-count-badge">0</span>
@@ -67,16 +83,19 @@
 
         <div class="p-6 border-t border-white/5">
             <div id="auth-section">
-                <button id="googleSignInBtn" class="w-full py-3 text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition border border-indigo-500/30 flex items-center justify-center gap-2">
-                    <i class="fab fa-google"></i> Google 登入
+                <button onclick="handleAuthClick()" class="w-full py-3 text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition border border-indigo-500/30 flex items-center justify-center gap-2">
+                    <i class="fab fa-google"></i> 登入雲端同步
                 </button>
             </div>
             <div id="user-profile" class="hidden flex items-center gap-3 p-3 bg-indigo-500/5 rounded-xl border border-indigo-500/20">
                 <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold" id="user-initial">U</div>
                 <div class="flex-1 overflow-hidden">
-                    <p class="text-[10px] font-bold text-slate-200 truncate tech-font" id="user-email">...</p>
-                    <button id="signOutBtn" class="text-[8px] text-red-400 hover:text-red-300 uppercase tracking-tighter">Sign_Out</button>
+                    <p class="text-[10px] font-bold text-slate-200 truncate tech-font" id="user-email">USER@CLOUD</p>
+                    <button onclick="handleSignoutClick()" class="text-[8px] text-red-400 hover:text-red-300 uppercase tracking-tighter">Sign_Out</button>
                 </div>
+                <button onclick="syncData(true)" class="text-indigo-400 hover:rotate-180 transition-transform duration-500">
+                    <i class="fas fa-sync-alt text-xs"></i>
+                </button>
             </div>
         </div>
     </aside>
@@ -90,8 +109,8 @@
                     class="w-full bg-white/5 border border-white/10 rounded-full py-2 px-12 text-sm focus:border-indigo-500 transition tech-font text-white outline-none">
             </div>
             <div class="flex items-center gap-4">
-                <span class="text-[10px] tech-font text-slate-500 uppercase">Records: <span id="filtered-count" class="text-indigo-400">0</span></span>
-                <button onclick="openAddItemModal()" class="bg-indigo-600 text-white px-6 py-2.5 rounded-full font-bold text-sm hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.3)]">
+                <span class="text-[10px] tech-font text-slate-500 uppercase">Found: <span id="filtered-count" class="text-indigo-400">0</span></span>
+                <button onclick="showAddItemModal()" class="bg-indigo-600 text-white px-6 py-2.5 rounded-full font-bold text-sm hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.3)]">
                     + NEW_RECORD
                 </button>
             </div>
@@ -101,19 +120,19 @@
             <div id="collection-container" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
             <div id="empty-state" class="hidden flex flex-col items-center justify-center py-40">
                 <i class="fas fa-database text-slate-800 text-4xl mb-4"></i>
-                <p class="text-xs tech-font text-slate-600 uppercase tracking-widest">No_Access_or_Empty</p>
+                <p class="text-xs tech-font text-slate-600 uppercase tracking-widest">Vault_Empty</p>
             </div>
         </div>
     </main>
 
-    <!-- Modal 結構 -->
+    <!-- 新增項目 Modal -->
     <div id="addItemModal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
         <div class="glass rounded-[2rem] w-full max-w-5xl overflow-hidden border border-white/10 shadow-2xl flex flex-col lg:flex-row max-h-[90vh]">
             <div class="flex-1 p-10 overflow-y-auto no-scrollbar border-r border-white/5">
                 <div class="mb-8"><h3 class="text-xl font-bold text-white tech-font uppercase">Add_To_Vault</h3></div>
                 <div class="space-y-6">
                     <div class="group">
-                        <label class="block text-[10px] text-slate-500 tech-font mb-2 uppercase">Image (Base64)</label>
+                        <label class="block text-[10px] text-slate-500 tech-font mb-2 uppercase">Image_Data</label>
                         <div id="drop-zone" class="relative w-full h-40 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all hover:border-indigo-500/50">
                             <input type="file" id="fileInput" accept="image/*" class="hidden">
                             <div id="drop-zone-content" class="text-center">
@@ -138,11 +157,12 @@
                         </div>
                     </div>
                     <div class="flex gap-4 pt-4">
-                        <button onclick="document.getElementById('addItemModal').classList.add('hidden')" class="flex-1 bg-white/5 text-slate-400 py-4 rounded-2xl font-bold tech-font hover:bg-white/10 transition uppercase">Cancel</button>
-                        <button onclick="saveNewItem()" class="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl font-bold tech-font hover:bg-indigo-500 transition uppercase">Upload_to_Firestore</button>
+                        <button onclick="hideAddItemModal()" class="flex-1 bg-white/5 text-slate-400 py-4 rounded-2xl font-bold tech-font hover:bg-white/10 transition uppercase">Cancel</button>
+                        <button id="commitBtn" onclick="saveNewItem()" class="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl font-bold tech-font hover:bg-indigo-500 transition uppercase">Save_Record</button>
                     </div>
                 </div>
             </div>
+            <!-- 預覽區 -->
             <div class="w-full lg:w-80 bg-white/5 p-10 flex flex-col justify-center items-center">
                 <div id="live-preview" class="w-full glass rounded-2xl overflow-hidden border border-indigo-500/30">
                     <div class="w-full h-40 bg-white/5 flex items-center justify-center overflow-hidden">
@@ -164,7 +184,7 @@
         <div class="glass rounded-3xl w-full max-w-sm overflow-hidden border border-white/10">
             <div class="p-6 border-b border-white/5 flex justify-between items-center">
                 <h3 class="text-xs font-bold text-white tech-font uppercase">New_Sector</h3>
-                <button onclick="document.getElementById('addCategoryModal').classList.add('hidden')" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
+                <button onclick="hideAddCategoryModal()" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-8 space-y-4">
                 <input type="text" id="newCategoryName" placeholder="分類名稱..." class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white outline-none focus:border-indigo-500">
@@ -173,187 +193,189 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+    <script>
+        // --- 設定 (Google API) ---
+        // 請確保您已在 Google Cloud Console 啟動 Google Drive API，並將網址加入授權來源
+        const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email';
+        let tokenClient;
+        let accessToken = null;
+        let currentUserEmail = null;
 
-        const firebaseConfig = JSON.parse('{"apiKey":"AIzaSyAcZj2VlLMH289GbaQEJetmxx5-L20hjrc","authDomain":"collector-e9a62.firebaseapp.com","projectId":"collector-e9a62","storageBucket":"collector-e9a62.firebasestorage.app","messagingSenderId":"208614853835","appId":"1:208614853835:web:ca2201e05ba940201f1f4e"}');
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'collector-app';
-
-        // 核心狀態
-        let user = null;
+        // --- 狀態 ---
         let collections = [];
-        let categories = ["攝影器材", "腕錶", "集換式卡牌", "藝術品", "其他"];
+        let categories = ["數位收藏", "實體資產", "加密貨幣"];
         let currentFilter = '全部';
         let currentSelectedImage = null;
-        let unsubscribeItems = null;
 
-        // 初始化
-        window.addEventListener('DOMContentLoaded', async () => {
-            toggleLoading(true, "Securing_Connection...");
+        // --- 初始化 ---
+        window.onload = () => {
+            loadLocalData();
+            initGoogleAuth();
             initImageEvents();
-            await initAuth();
-        });
+            renderAll();
+        };
 
-        // --- 修正後的 Auth 流程 ---
-        async function initAuth() {
-            // 監聽狀態
-            onAuthStateChanged(auth, async (u) => {
-                if (u) {
-                    user = u;
-                    await handleUserIn();
-                } else {
-                    user = null;
-                    handleUserOut();
-                }
-            });
+        function loadLocalData() {
+            const data = localStorage.getItem('vault_v3_data');
+            const cats = localStorage.getItem('vault_v3_categories');
+            if(data) collections = JSON.parse(data);
+            if(cats) categories = JSON.parse(cats);
+        }
 
-            // 觸發登入
+        // --- Google Auth 邏輯 ---
+        function initGoogleAuth() {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (e) {
-                console.error("Auth init failed:", e);
-                // 如果 custom token 失敗，嘗試匿名登入作為備援
-                try { await signInAnonymously(auth); } catch(e2) {}
+                // 如果您是從本地測試，請務必填寫有效的 Client ID
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: '86161491147-3q4j9f2r7o1g0i0t7q8r9g9v8f8f8f8f.apps.googleusercontent.com', // 範例格式，請替換
+                    scope: SCOPES,
+                    callback: (tokenResponse) => {
+                        if (tokenResponse.error !== undefined) {
+                            console.error("Google Auth Error:", tokenResponse);
+                            // 如果彈窗被手動關閉，tokenResponse.error 會是 "popup_closed_by_user"
+                            if (tokenResponse.error === 'popup_closed_by_user') {
+                                showToast("驗證視窗已關閉，請重試");
+                            } else {
+                                showToast("登入錯誤: " + tokenResponse.error);
+                            }
+                            toggleLoading(false);
+                            return;
+                        }
+                        accessToken = tokenResponse.access_token;
+                        afterLogin();
+                    },
+                    error_callback: (err) => {
+                        console.error("Initialization Error:", err);
+                        // 這是捕捉 Popup window closed 的關鍵點
+                        if (err.type === 'popup_closed') {
+                            showToast("視窗意外關閉，請重新點擊登入");
+                        }
+                        toggleLoading(false);
+                    }
+                });
+            } catch (err) {
+                console.error("Google SDK Load Error:", err);
             }
         }
 
-        async function handleUserIn() {
+        function handleAuthClick() {
+            if (!tokenClient) {
+                // 如果初始化失敗，嘗試重新載入
+                initGoogleAuth();
+                if (!tokenClient) return showToast("SDK 初始化失敗，請檢查網路或 Client ID");
+            }
+            
+            try {
+                // 請求存取權杖
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } catch (e) {
+                console.error("Request Token Error:", e);
+                showToast("開啟登入視窗失敗，請檢查是否被瀏覽器攔截");
+            }
+        }
+
+        function handleSignoutClick() {
+            if (accessToken) {
+                google.accounts.oauth2.revoke(accessToken, () => {
+                    accessToken = null;
+                    currentUserEmail = null;
+                    document.getElementById('auth-section').classList.remove('hidden');
+                    document.getElementById('user-profile').classList.add('hidden');
+                    showToast("SIGNED_OUT");
+                });
+            }
+        }
+
+        async function afterLogin() {
             document.getElementById('auth-section').classList.add('hidden');
             document.getElementById('user-profile').classList.remove('hidden');
             
-            const isAnonymous = user.isAnonymous;
-            document.getElementById('user-email').innerText = isAnonymous ? `ID: ${user.uid.substring(0,8)}...` : user.email;
-            document.getElementById('user-initial').innerText = isAnonymous ? "?" : (user.email ? user.email[0].toUpperCase() : "U");
-            
-            // 先同步分類資料，再啟動監聽項目
-            await syncCategories();
-            subscribeToData();
-            toggleLoading(false);
-            showToast("DATA_SYNC_ACTIVE");
-        }
-
-        function handleUserOut() {
-            if (unsubscribeItems) unsubscribeItems();
-            document.getElementById('auth-section').classList.remove('hidden');
-            document.getElementById('user-profile').classList.add('hidden');
-            collections = [];
-            renderAll();
-            toggleLoading(false);
-        }
-
-        // --- 修正後的 Firestore 監聽器 (RULE 1, 2, 3) ---
-        function subscribeToData() {
-            // 再次檢查 User 存在，這是避免 Permission Error 的關鍵
-            if (!user) {
-                console.warn("Attempted to subscribe without User context.");
-                return;
-            }
-            
-            if (unsubscribeItems) unsubscribeItems();
-
-            // 嚴格遵守路徑：/artifacts/{appId}/users/{userId}/items
-            const itemsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'items');
-            
-            // 使用簡單查詢以避免 index 需求
-            unsubscribeItems = onSnapshot(itemsRef, (snapshot) => {
-                collections = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderAll();
-            }, (error) => {
-                console.error("Snapshot Error:", error);
-                if (error.code === 'permission-denied') {
-                    showToast("PERM_DENIED: Check Auth State");
-                }
-            });
-        }
-
-        async function syncCategories() {
-            if (!user) return;
-            // 路徑：/artifacts/{appId}/users/{userId}/settings/categories
-            const catDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'categories');
             try {
-                const snap = await getDoc(catDocRef);
-                if (snap.exists()) {
-                    categories = snap.data().list || categories;
+                const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const info = await resp.json();
+                currentUserEmail = info.email;
+                document.getElementById('user-email').innerText = info.email;
+                document.getElementById('user-initial').innerText = info.email[0].toUpperCase();
+                showToast(`WELCOME_${info.given_name || 'USER'}`);
+                syncData();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // --- 雲端同步核心 ---
+        async function syncData(forceUpload = false) {
+            if (!accessToken) return;
+            toggleLoading(true, "Syncing_Vault...");
+
+            try {
+                const listResp = await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='vault_sync.json'`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const listData = await listResp.json();
+                const file = listData.files[0];
+
+                if (file && !forceUpload) {
+                    const contentResp = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    const cloudData = await contentResp.json();
+                    if (cloudData.collections) collections = cloudData.collections;
+                    if (cloudData.categories) categories = cloudData.categories;
+                    saveLocal();
+                    renderAll();
+                    showToast("CLOUD_DATA_RESTORED");
                 } else {
-                    await setDoc(catDocRef, { list: categories });
+                    await uploadToCloud(file ? file.id : null);
+                    showToast("LOCAL_SYNCED_TO_CLOUD");
                 }
             } catch (e) {
-                console.error("Category Sync Error:", e);
-            }
-        }
-
-        // --- 功能函數 ---
-        window.saveNewCategory = async function() {
-            const name = document.getElementById('newCategoryName').value.trim();
-            if(!name || !user) return;
-            
-            if(!categories.includes(name)) {
-                categories.push(name);
-                try {
-                    const catDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'categories');
-                    await setDoc(catDocRef, { list: categories });
-                    document.getElementById('addCategoryModal').classList.add('hidden');
-                    document.getElementById('newCategoryName').value = '';
-                    renderAll();
-                    showToast("SECTOR_ADDED");
-                } catch(e) {
-                    showToast("UPDATE_FAILED");
-                }
-            }
-        };
-
-        window.saveNewItem = async function() {
-            const name = document.getElementById('itemName').value;
-            if(!name || !user) return showToast("INVALID_INPUT");
-
-            toggleLoading(true, "Storing_Encrypted_Data...");
-            try {
-                const itemData = {
-                    name,
-                    category: document.getElementById('itemCategory').value,
-                    value: parseInt(document.getElementById('itemValue').value) || 0,
-                    image: currentSelectedImage, 
-                    timestamp: serverTimestamp(),
-                    date: new Date().toLocaleDateString()
-                };
-
-                const itemsCol = collection(db, 'artifacts', appId, 'users', user.uid, 'items');
-                await addDoc(itemsCol, itemData);
-                
-                document.getElementById('addItemModal').classList.add('hidden');
-                resetForm();
-                showToast("ITEM_VAULTED");
-            } catch (error) {
-                console.error("Save Error:", error);
-                showToast("SAVE_ERROR");
+                console.error(e);
+                showToast("SYNC_FAILED");
             } finally {
                 toggleLoading(false);
             }
-        };
+        }
 
-        window.deleteItem = async function(docId) {
-            if(!user) return;
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'items', docId);
-                await deleteDoc(docRef);
-                showToast("ENTRY_DELETED");
-            } catch (error) {
-                showToast("DELETE_FAILED");
+        async function uploadToCloud(fileId = null) {
+            if(!accessToken) return;
+            
+            if(!fileId) {
+                const listResp = await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='vault_sync.json'`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const listData = await listResp.json();
+                if(listData.files && listData.files.length > 0) fileId = listData.files[0].id;
             }
-        };
 
-        // --- UI 渲染 ---
+            const metadata = { name: 'vault_sync.json', parents: ['appDataFolder'] };
+            const data = { collections, categories };
+            const boundary = 'foo_bar_baz';
+            const delimiter = "\r\n--" + boundary + "\r\n";
+            const close_delim = "\r\n--" + boundary + "--";
+
+            const multipartRequestBody =
+                delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) +
+                delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(data) +
+                close_delim;
+
+            const url = fileId 
+                ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+                : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+            
+            await fetch(url, {
+                method: fileId ? 'PATCH' : 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': `multipart/related; boundary=${boundary}`
+                },
+                body: multipartRequestBody
+            });
+        }
+
+        // --- 渲染系統 ---
         function renderAll() {
             renderSidebar();
             renderCollections();
@@ -362,73 +384,137 @@
 
         function renderSidebar() {
             const container = document.getElementById('category-list');
-            const totalBadge = document.getElementById('total-count-badge');
-            if (totalBadge) totalBadge.innerText = collections.length;
+            document.getElementById('total-count-badge').innerText = collections.length;
             
-            if (container) {
-                container.innerHTML = categories.map(cat => {
-                    const count = collections.filter(i => i.category === cat).length;
-                    return `
-                        <button onclick="filterByCategory('${cat}')" class="sidebar-item ${currentFilter === cat ? 'active' : ''} w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all group">
-                            <span class="flex items-center gap-3"><i class="fas fa-tag opacity-30"></i> ${cat}</span>
+            container.innerHTML = categories.map(cat => {
+                const count = collections.filter(i => i.category === cat).length;
+                return `
+                    <div class="group flex items-center gap-1 sidebar-item ${currentFilter === cat ? 'active' : ''} rounded-xl transition-all pr-2">
+                        <button onclick="filterByCategory('${cat}')" class="flex-1 flex items-center justify-between px-4 py-2.5 text-xs font-medium">
+                            <span class="flex items-center gap-3"><i class="fas fa-folder-open opacity-30"></i> ${cat}</span>
                             <span class="tech-font opacity-40">${count}</span>
                         </button>
-                    `;
-                }).join('');
-            }
+                        <button onclick="confirmDeleteCategory('${cat}')" class="opacity-0 group-hover:opacity-100 p-2 text-slate-600 hover:text-red-400 transition-opacity">
+                            <i class="fas fa-times text-[10px]"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
         }
 
-        window.renderCollections = function() {
+        function renderCollections() {
             const container = document.getElementById('collection-container');
             const search = document.getElementById('searchInput').value.toLowerCase();
             
             let filtered = collections.filter(i => {
-                const matchesSearch = i.name?.toLowerCase().includes(search);
+                const matchesSearch = i.name.toLowerCase().includes(search);
                 const matchesCat = currentFilter === '全部' || i.category === currentFilter;
                 return matchesSearch && matchesCat;
             });
 
-            const filteredCount = document.getElementById('filtered-count');
-            if (filteredCount) filteredCount.innerText = filtered.length;
-            
-            const emptyState = document.getElementById('empty-state');
-            if (emptyState) emptyState.classList.toggle('hidden', filtered.length > 0 || !user);
+            document.getElementById('filtered-count').innerText = filtered.length;
+            document.getElementById('empty-state').classList.toggle('hidden', filtered.length > 0);
 
-            if (container) {
-                container.innerHTML = filtered.map(item => `
-                    <div class="glass rounded-2xl p-4 border border-white/5 hover:border-indigo-500/30 transition group flex items-center gap-4">
-                        <div class="w-16 h-16 bg-white/5 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
-                            ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : `<i class="fas fa-cube text-xl text-indigo-500/20"></i>`}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2 mb-0.5">
-                                <span class="text-[8px] tech-font text-indigo-400 border border-indigo-500/20 px-1 py-0.5 rounded uppercase">${item.category}</span>
-                                <h4 class="font-bold text-white text-sm truncate">${item.name}</h4>
-                            </div>
-                            <div class="flex items-center gap-4 text-[10px] text-slate-500 tech-font">
-                                <span class="text-emerald-500 font-bold">$${(item.value || 0).toLocaleString()}</span>
-                                <span class="opacity-30">${item.date || ''}</span>
-                            </div>
-                        </div>
-                        <button onclick="deleteItem('${item.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-slate-600 hover:text-red-400 transition">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
+            container.innerHTML = filtered.map(item => `
+                <div class="glass rounded-2xl p-4 border border-white/5 hover:border-indigo-500/30 transition group flex items-center gap-4">
+                    <div class="w-16 h-16 bg-white/5 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
+                        ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : `<i class="fas fa-cube text-xl text-indigo-500/20"></i>`}
                     </div>
-                `).join('');
-            }
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-0.5">
+                            <span class="text-[8px] tech-font text-indigo-400 border border-indigo-500/20 px-1 py-0.5 rounded uppercase">${item.category || '未分類'}</span>
+                            <h4 class="font-bold text-white text-sm truncate">${item.name}</h4>
+                        </div>
+                        <div class="flex items-center gap-4 text-[10px] text-slate-500 tech-font">
+                            <span class="text-emerald-500 font-bold">$${item.value.toLocaleString()}</span>
+                            <span class="opacity-30">${item.date}</span>
+                        </div>
+                    </div>
+                    <button onclick="deleteItem(${item.id})" class="opacity-0 group-hover:opacity-100 p-2 text-slate-600 hover:text-red-400 transition">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            `).join('');
         }
 
-        // --- 圖片處理 ---
+        // --- 分類刪除邏輯 ---
+        let categoryToDelete = null;
+        function confirmDeleteCategory(cat) {
+            categoryToDelete = cat;
+            const count = collections.filter(i => i.category === cat).length;
+            const msg = count > 0 
+                ? `此分類含有 ${count} 個項目。刪除後，這些項目將會被歸類為「未分類」。` 
+                : `確定要移除「${cat}」分類嗎？`;
+            
+            document.getElementById('confirmMessage').innerText = msg;
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        document.getElementById('cancelConfirm').onclick = () => {
+            document.getElementById('confirmModal').classList.add('hidden');
+            categoryToDelete = null;
+        };
+
+        document.getElementById('executeConfirm').onclick = () => {
+            if(!categoryToDelete) return;
+            collections = collections.map(item => {
+                if(item.category === categoryToDelete) return { ...item, category: '未分類' };
+                return item;
+            });
+            categories = categories.filter(c => c !== categoryToDelete);
+            if(currentFilter === categoryToDelete) currentFilter = '全部';
+
+            saveLocal();
+            renderAll();
+            if (accessToken) uploadToCloud();
+            document.getElementById('confirmModal').classList.add('hidden');
+            showToast("CATEGORY_REMOVED");
+            categoryToDelete = null;
+        };
+
+        // --- 核心操作 ---
+        async function saveNewItem() {
+            const name = document.getElementById('itemName').value;
+            if(!name) return showToast("NAME_REQUIRED");
+
+            const newItem = {
+                id: Date.now(),
+                name,
+                category: document.getElementById('itemCategory').value,
+                value: parseInt(document.getElementById('itemValue').value) || 0,
+                image: currentSelectedImage,
+                date: new Date().toLocaleDateString()
+            };
+
+            collections.unshift(newItem);
+            saveLocal();
+            renderAll();
+            hideAddItemModal();
+            resetForm();
+            if (accessToken) uploadToCloud();
+        }
+
+        function deleteItem(id) {
+            collections = collections.filter(i => i.id !== id);
+            saveLocal();
+            renderAll();
+            if (accessToken) uploadToCloud();
+        }
+
+        function saveLocal() {
+            localStorage.setItem('vault_v3_data', JSON.stringify(collections));
+            localStorage.setItem('vault_v3_categories', JSON.stringify(categories));
+        }
+
+        // --- 輔助功能 ---
         function initImageEvents() {
             const dropZone = document.getElementById('drop-zone');
             const fileInput = document.getElementById('fileInput');
-            if (dropZone && fileInput) {
-                dropZone.onclick = () => fileInput.click();
-                fileInput.onchange = (e) => handleFile(e.target.files[0]);
-                dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
-                dropZone.ondragleave = () => dropZone.classList.remove('dragover');
-                dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); };
-            }
+            dropZone.onclick = () => fileInput.click();
+            fileInput.onchange = (e) => handleFile(e.target.files[0]);
+            dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+            dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+            dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); };
         }
 
         function handleFile(file) {
@@ -445,20 +531,37 @@
             reader.readAsDataURL(file);
         }
 
-        window.updatePreview = function() {
+        function updatePreview() {
             document.getElementById('preview-name').innerText = document.getElementById('itemName').value || '未命名';
             document.getElementById('preview-cat').innerText = document.getElementById('itemCategory').value || 'CATEGORY';
             document.getElementById('preview-value').innerText = '$' + (parseInt(document.getElementById('itemValue').value) || 0).toLocaleString();
         }
 
         function updateCategoryDropdown() {
-            const el = document.getElementById('itemCategory');
-            if (el) el.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+            document.getElementById('itemCategory').innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
         }
 
-        window.filterByCategory = function(cat) {
+        function filterByCategory(cat) {
             currentFilter = cat;
+            document.getElementById('btn-filter-all').classList.toggle('active', cat === '全部');
             renderAll();
+        }
+
+        function showAddItemModal() { document.getElementById('addItemModal').classList.remove('hidden'); }
+        function hideAddItemModal() { document.getElementById('addItemModal').classList.add('hidden'); }
+        function showAddCategoryModal() { document.getElementById('addCategoryModal').classList.remove('hidden'); }
+        function hideAddCategoryModal() { document.getElementById('addCategoryModal').classList.add('hidden'); }
+
+        function saveNewCategory() {
+            const name = document.getElementById('newCategoryName').value.trim();
+            if(name && !categories.includes(name)) {
+                categories.push(name);
+                saveLocal();
+                renderAll();
+                hideAddCategoryModal();
+                document.getElementById('newCategoryName').value = '';
+                if (accessToken) uploadToCloud();
+            }
         }
 
         function resetForm() {
@@ -472,38 +575,16 @@
 
         function toggleLoading(show, text = "") {
             const el = document.getElementById('loading');
-            const txt = document.getElementById('loading-text');
-            if (txt) txt.innerText = text;
-            if (el) el.classList.toggle('hidden', !show);
+            document.getElementById('loading-text').innerText = text;
+            el.classList.toggle('hidden', !show);
         }
 
         function showToast(msg) {
             const t = document.getElementById('toast');
-            if (t) {
-                t.innerText = msg;
-                t.style.opacity = '1';
-                setTimeout(() => t.style.opacity = '0', 3000);
-            }
+            t.innerText = msg;
+            t.style.opacity = '1';
+            setTimeout(() => t.style.opacity = '0', 3000);
         }
-
-        // 登入事件
-        document.getElementById('googleSignInBtn').onclick = async () => {
-            toggleLoading(true, "Google_Auth_In_Progress...");
-            const provider = new GoogleAuthProvider();
-            try {
-                await signInWithPopup(auth, provider);
-            } catch (error) {
-                showToast("AUTH_ERROR");
-            } finally {
-                toggleLoading(false);
-            }
-        };
-
-        document.getElementById('signOutBtn').onclick = async () => {
-            await signOut(auth);
-            location.reload();
-        };
-
     </script>
 </body>
 </html>
