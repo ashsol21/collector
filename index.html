@@ -157,7 +157,7 @@
         <div class="p-6 border-t border-white/5">
             <div id="auth-section" class="flex gap-2">
                 <button onclick="handleAuthClick()" class="flex-1 py-3 text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition border border-white/10 flex items-center justify-center gap-2">
-                    <i class="fab fa-google"></i> 儀式連結
+                    <i class="fab fa-google"></i> Google 登入
                 </button>
                 <button onclick="showSettingsModal()" class="px-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl transition border border-white/10" title="Google API 參數配置">
                     <i class="fas fa-cog"></i>
@@ -307,7 +307,7 @@
                         <i class="fas fa-list-ul text-slate-600"></i>
                     </div>
                     <div id="collection-container" class="space-y-3 max-h-[450px] overflow-y-auto pr-1">
-                        <!-- 動態填充 -->
+                        <!-- 數據節點將動態生成於此 -->
                     </div>
                 </div>
             </div>
@@ -399,7 +399,7 @@
         </div>
     </div>
 
-    <!-- 設定 Google Client ID Modal (包含雲端模擬開關) -->
+    <!-- 設定 Google Client ID Modal -->
     <div id="settingsModal" class="hidden fixed inset-0 z-[202] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
         <div class="gothic-card gothic-border rounded-3xl w-full max-w-md overflow-hidden border border-white/10">
             <div class="p-6 border-b border-white/5 bg-white/5 flex justify-between items-center">
@@ -410,18 +410,25 @@
                 <p class="text-xs text-slate-400 leading-relaxed">由於 Google 的安全機制，真實雲端同步需要您提供專屬的 OAuth 2.0 Client ID。請於 Google Cloud Console 申請後在此填入：</p>
                 <input type="text" id="gsiClientIdInput" placeholder="xxxxxx.apps.googleusercontent.com" class="w-full bg-slate-950/60 border border-white/10 rounded-xl py-3 px-4 text-white text-xs outline-none focus:border-slate-500 tech-font">
                 
-                <div class="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 mt-4">
-                    <div>
-                        <p class="text-xs text-white font-bold gothic-font">虛擬雲端模擬器 (Iframe Sandbox 備援)</p>
-                        <p class="text-[9px] text-slate-500">啟用後，所有雲端備份均於虛擬環境中極速模擬運作</p>
-                    </div>
-                    <input type="checkbox" id="gsiSimulatorCheckbox" class="w-4 h-4 cursor-pointer">
-                </div>
-
                 <div class="flex gap-3 pt-2">
                     <button onclick="saveSettings()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold tech-font transition border border-white/10">SAVE_CONFIG</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- 安全限制與說明 Modal -->
+    <div id="sandboxHelpModal" class="hidden fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
+        <div class="gothic-card gothic-border rounded-3xl w-full max-w-md p-8 border border-red-500/20 shadow-[0_0_30px_rgba(153,27,27,0.15)] text-center">
+            <i class="fas fa-ban text-red-700 text-4xl mb-4"></i>
+            <h3 class="text-white font-bold mb-2 gothic-font tracking-wider">瀏覽器安全政策限制</h3>
+            <p class="text-xs text-slate-400 mb-6 leading-relaxed text-left">
+                由於 Google 嚴格的 OAuth 安全性規範，<strong>不允許</strong>在沙盒化的內嵌網頁（Iframe Sandbox）中直接執行彈出式登入。
+                <br><br>
+                <strong>解決方案：</strong><br>
+                請將此專案之 HTML 程式碼複製並下載至本機電腦，保存為 <code class="text-slate-200">index.html</code> 後於瀏覽器中直接開啟，或部署在您自己的網域（如 GitHub Pages），即可順利調用真實 Google 雲端帳號。
+            </p>
+            <button onclick="hideSandboxHelpModal()" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs tech-font transition border border-white/10">理解並關閉</button>
         </div>
     </div>
 
@@ -449,7 +456,6 @@
             initStarEvents();
             renderAll();
             
-            // 預設將第一個項目設為焦點展示
             if (collections.length > 0) {
                 setFocusItem(collections[0]);
             }
@@ -462,22 +468,16 @@
             if(cats) categories = JSON.parse(cats);
         }
 
-        // --- Google Auth 邏輯 (極致防禦，徹底阻止 _.zd 崩潰) ---
+        // --- 真實 Google Auth 邏輯 (完全移除模擬) ---
         function initGoogleAuth() {
             if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
                 console.warn("Google Identity Services SDK 未載入或已被阻擋，切換為本地運作。");
                 return;
             }
 
-            const isSimulator = localStorage.getItem('vault_gsi_simulator') === 'true';
-            if (isSimulator) {
-                console.log("模擬雲端功能已啟用。");
-                return;
-            }
-
             const clientIdInput = localStorage.getItem('vault_gsi_client_id') || '';
             if (!clientIdInput || clientIdInput.includes('8f8f8f') || clientIdInput.includes('YOUR_')) {
-                console.log("目前為本地離線模式。若要開啟雲端同步，請配置有效的 Google Client ID。");
+                console.log("目前為本地離線模式。若要開啟真實雲端同步，請配置有效的 Google Client ID。");
                 return;
             }
 
@@ -488,13 +488,10 @@
                     callback: (tokenResponse) => {
                         if (tokenResponse.error !== undefined) {
                             toggleLoading(false);
-                            // 智慧判斷彈窗關閉錯誤，無縫導向虛擬模擬器
                             if (tokenResponse.error === 'popup_closed' || tokenResponse.error === 'popup_closed_by_user') {
-                                showToast("檢測到視窗關閉，已自動啟用虛擬雲端！");
-                                localStorage.setItem('vault_gsi_simulator', 'true');
-                                setTimeout(() => { simulateLogin(); }, 800);
+                                showToast("驗證視窗已被關閉");
                             } else {
-                                showToast("驗證錯誤");
+                                showToast("驗證錯誤: " + tokenResponse.error);
                             }
                             return;
                         }
@@ -502,39 +499,28 @@
                         afterLogin();
                     },
                     error_callback: (err) => {
-                        // 這裡就是關鍵的 _.zd 內部建構子捕獲。為了不被外層 log 監聽器抓到，我們在主控台完全保持安靜
                         toggleLoading(false);
-                        showToast("檢測到沙盒限制，自動開啟虛擬雲端備援！");
-                        localStorage.setItem('vault_gsi_simulator', 'true');
-                        setTimeout(() => { simulateLogin(); }, 800);
+                        console.error("GSI 執行階段錯誤: ", err);
+                        showSandboxHelpModal();
                     }
                 });
             } catch (err) {
-                // 完全靜默捕獲
+                console.error("GSI 初始化捕獲異常: ", err);
             }
         }
 
         function handleAuthClick() {
-            const isSimulator = localStorage.getItem('vault_gsi_simulator') === 'true';
-            if (isSimulator) {
-                simulateLogin();
-                return;
-            }
-
             const savedId = localStorage.getItem('vault_gsi_client_id');
             if (!savedId) {
-                showToast("未配置 Client ID，已為您自動啟用虛擬雲端！");
-                localStorage.setItem('vault_gsi_simulator', 'true');
-                setTimeout(() => { simulateLogin(); }, 500);
+                showToast("請先配置您的 Google Client ID");
+                showSettingsModal();
                 return;
             }
 
             if (!tokenClient) {
                 initGoogleAuth();
                 if (!tokenClient) {
-                    showToast("SDK 初始化失敗，自動啟用虛擬雲端備援！");
-                    localStorage.setItem('vault_gsi_simulator', 'true');
-                    setTimeout(() => { simulateLogin(); }, 500);
+                    showSandboxHelpModal();
                     return;
                 }
             }
@@ -544,41 +530,19 @@
                 tokenClient.requestAccessToken({prompt: 'consent'});
             } catch (e) {
                 toggleLoading(false);
-                showToast("彈出視窗請求失敗，已自動切換至虛擬雲端！");
-                localStorage.setItem('vault_gsi_simulator', 'true');
-                setTimeout(() => { simulateLogin(); }, 500);
+                console.error("彈出視窗請求失敗:", e);
+                showSandboxHelpModal();
             }
-        }
-
-        // --- 虛擬雲端同步模擬器流程 (讓使用者在 Iframe 中也能完美通關) ---
-        function simulateLogin() {
-            toggleLoading(true, "Simulating_Soul_Link...");
-            setTimeout(() => {
-                document.getElementById('auth-section').classList.add('hidden');
-                document.getElementById('user-profile').classList.remove('hidden');
-                document.getElementById('user-email').innerText = "SIMULATOR_SOUL@CLOUD";
-                document.getElementById('user-initial').innerText = "S";
-                showToast("VIRTUAL_SOUL_LINKED_SUCCESS");
-                toggleLoading(false);
-            }, 1000);
         }
 
         function handleSignoutClick() {
-            const isSimulator = localStorage.getItem('vault_gsi_simulator') === 'true';
-            if (isSimulator) {
-                document.getElementById('auth-section').classList.remove('hidden');
-                document.getElementById('user-profile').classList.add('hidden');
-                showToast("VIRTUAL_LINK_DISCONNECTED");
-                return;
-            }
-
             if (accessToken && typeof google !== 'undefined') {
                 google.accounts.oauth2.revoke(accessToken, () => {
                     accessToken = null;
                     currentUserEmail = null;
                     document.getElementById('auth-section').classList.remove('hidden');
                     document.getElementById('user-profile').classList.add('hidden');
-                    showToast("SIGNED_OUT");
+                    showToast("已登出 Google 帳號");
                 });
             }
         }
@@ -598,7 +562,7 @@
                 showToast(`WELCOME_${info.given_name || 'USER'}`);
                 syncData();
             } catch (e) {
-                console.error(e);
+                console.error("獲取用戶資料失敗: ", e);
             }
         }
 
@@ -606,10 +570,8 @@
         window.showSettingsModal = () => {
             const modal = document.getElementById('settingsModal');
             const input = document.getElementById('gsiClientIdInput');
-            const simCheck = document.getElementById('gsiSimulatorCheckbox');
             if (modal) modal.classList.remove('hidden');
             if (input) input.value = localStorage.getItem('vault_gsi_client_id') || '';
-            if (simCheck) simCheck.checked = localStorage.getItem('vault_gsi_simulator') === 'true';
         };
 
         window.hideSettingsModal = () => {
@@ -619,33 +581,27 @@
 
         window.saveSettings = () => {
             const input = document.getElementById('gsiClientIdInput').value.trim();
-            const simCheck = document.getElementById('gsiSimulatorCheckbox').checked;
-            
-            localStorage.setItem('vault_gsi_simulator', simCheck ? 'true' : 'false');
-
             if (input) {
                 localStorage.setItem('vault_gsi_client_id', input);
-                showToast("參數設定已保存！系統重載中...");
+                showToast("Client ID 設定成功！網頁重新載入中...");
                 setTimeout(() => location.reload(), 1000);
             } else {
                 localStorage.removeItem('vault_gsi_client_id');
-                showToast("已回復為本地/模擬模式。系統重載中...");
+                showToast("已回復為本地離線模式。網頁重新載入中...");
                 setTimeout(() => location.reload(), 1000);
             }
         };
 
+        // --- 沙盒說明 Modal 控制 ---
+        function showSandboxHelpModal() {
+            document.getElementById('sandboxHelpModal').classList.remove('hidden');
+        }
+        function hideSandboxHelpModal() {
+            document.getElementById('sandboxHelpModal').classList.add('hidden');
+        }
+
         // --- 雲端同步核心 ---
         async function syncData(forceUpload = false) {
-            const isSimulator = localStorage.getItem('vault_gsi_simulator') === 'true';
-            if (isSimulator) {
-                toggleLoading(true, "Simulating_Soul_Database_Sync...");
-                setTimeout(() => {
-                    toggleLoading(false);
-                    showToast("SIMULATED_CLOUD_DATABASE_RESTORED");
-                }, 1000);
-                return;
-            }
-
             if (!accessToken) return;
             toggleLoading(true, "Syncing_Vault...");
 
@@ -800,7 +756,7 @@
             if (found) setFocusItem(found);
         }
 
-        // --- 統計數據渲染 (還原美感指標) ---
+        // --- 統計數據渲染 ---
         function renderStats() {
             const total = collections.length;
             const highRating = collections.filter(i => i.rating >= 4).length;
@@ -879,20 +835,6 @@
                 setFocusItem(collections[0]);
             }
             if (accessToken) uploadToCloud();
-        }
-
-        // 偵測是否被 iframe / 彈出視窗攔截或使用者關閉
-        function checkPopupFailure(err) {
-            const errStr = (err && err.message) ? err.message : String(err);
-            if (errStr.includes("closed") || errStr.includes("blocked") || errStr.includes("popup")) {
-                console.warn("[VaultOS 智慧自動備援] 偵測到 iframe/彈出視窗錯誤，已自動無縫引導至模擬雲端環境！", err);
-                toggleLoading(false);
-                showToast("檢測到瀏覽器沙盒限制，自動開啟虛擬雲端備援！");
-                localStorage.setItem('vault_gsi_simulator', 'true');
-                setTimeout(() => { simulateLogin(); }, 800);
-                return true;
-            }
-            return false;
         }
 
         function saveLocal() {
