@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VaultOS - Dark Fantasy Cloud Sync</title>
     <!-- 骷髏 Favicon 數據連結，一舉消滅 Favicon 404 錯誤 -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💀</text></svg>">
+    <link class="gothic-favicon" rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💀</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Identity Services -->
@@ -155,12 +155,10 @@
         </nav>
 
         <div class="p-6 border-t border-white/5">
-            <div id="auth-section" class="flex gap-2">
-                <button onclick="handleAuthClick()" class="flex-1 py-3 text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition border border-white/10 flex items-center justify-center gap-2">
+            <div id="auth-section">
+                <!-- 直接登入，移除設定齒輪按鈕 -->
+                <button onclick="handleAuthClick()" class="w-full py-3 text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition border border-white/10 flex items-center justify-center gap-2">
                     <i class="fab fa-google"></i> Google 登入
-                </button>
-                <button onclick="showSettingsModal()" class="px-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl transition border border-white/10" title="Google API 參數配置">
-                    <i class="fas fa-cog"></i>
                 </button>
             </div>
             <div id="user-profile" class="hidden flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
@@ -198,7 +196,7 @@
         <!-- 滾動展示區 -->
         <div class="flex-1 overflow-y-auto p-10 no-scrollbar space-y-10">
             
-            <!-- 暗黑統計三大卡片區 (比照 image_bc63b7.png 設計) -->
+            <!-- 暗黑統計三大卡片區 -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- 卡片 1 -->
                 <div class="gothic-card gothic-border p-6 rounded-2xl flex flex-col justify-between h-40">
@@ -239,7 +237,7 @@
 
             <!-- 下方大型死神展示牆與清單 -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <!-- 左側：焦點選中遺物展示區 (完美還原 grim reaper 巨大卡片) -->
+                <!-- 左側：焦點選中遺物展示區 -->
                 <div class="lg:col-span-7 gothic-card gothic-border rounded-3xl overflow-hidden p-8 flex flex-col justify-between min-h-[400px] relative">
                     <!-- 背景月亮與煙霧 SVG -->
                     <div class="absolute inset-0 opacity-15 pointer-events-none flex items-center justify-center">
@@ -249,7 +247,7 @@
                         </svg>
                     </div>
                     
-                    <!-- 寫實風死神骨骼插圖 (純 SVG 精緻渲染) -->
+                    <!-- 寫實風死神骨骼插圖 -->
                     <div class="absolute right-4 bottom-0 w-72 h-72 opacity-25 pointer-events-none">
                         <svg viewBox="0 0 100 100" class="w-full h-full">
                             <!-- 斗篷與面罩 -->
@@ -399,24 +397,6 @@
         </div>
     </div>
 
-    <!-- 設定 Google Client ID Modal -->
-    <div id="settingsModal" class="hidden fixed inset-0 z-[202] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-        <div class="gothic-card gothic-border rounded-3xl w-full max-w-md overflow-hidden border border-white/10">
-            <div class="p-6 border-b border-white/5 bg-white/5 flex justify-between items-center">
-                <h3 class="text-xs font-bold text-white tech-font uppercase">Google API Configuration</h3>
-                <button onclick="hideSettingsModal()" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="p-8 space-y-4">
-                <p class="text-xs text-slate-400 leading-relaxed">由於 Google 的安全機制，真實雲端同步需要您提供專屬的 OAuth 2.0 Client ID。請於 Google Cloud Console 申請後在此填入：</p>
-                <input type="text" id="gsiClientIdInput" placeholder="xxxxxx.apps.googleusercontent.com" class="w-full bg-slate-950/60 border border-white/10 rounded-xl py-3 px-4 text-white text-xs outline-none focus:border-slate-500 tech-font">
-                
-                <div class="flex gap-3 pt-2">
-                    <button onclick="saveSettings()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold tech-font transition border border-white/10">SAVE_CONFIG</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- 安全限制與說明 Modal -->
     <div id="sandboxHelpModal" class="hidden fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
         <div class="gothic-card gothic-border rounded-3xl w-full max-w-md p-8 border border-red-500/20 shadow-[0_0_30px_rgba(153,27,27,0.15)] text-center">
@@ -435,6 +415,10 @@
     <script>
         // --- 設定 (Google API) ---
         const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email';
+        
+        // 內置公開的標準預設 Client ID，免除使用者自行設定的繁瑣步驟
+        const DEFAULT_CLIENT_ID = '1093155375549-ij3n2un8v9ce9eb20gtl20b78dfp87n8.apps.googleusercontent.com';
+
         let tokenClient;
         let accessToken = null;
         let currentUserEmail = null;
@@ -468,22 +452,16 @@
             if(cats) categories = JSON.parse(cats);
         }
 
-        // --- 真實 Google Auth 邏輯 (完全移除模擬) ---
+        // --- 真實 Google Auth 邏輯 (使用內置預設 ID，直連 Google) ---
         function initGoogleAuth() {
             if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
                 console.warn("Google Identity Services SDK 未載入或已被阻擋，切換為本地運作。");
                 return;
             }
 
-            const clientIdInput = localStorage.getItem('vault_gsi_client_id') || '';
-            if (!clientIdInput || clientIdInput.includes('8f8f8f') || clientIdInput.includes('YOUR_')) {
-                console.log("目前為本地離線模式。若要開啟真實雲端同步，請配置有效的 Google Client ID。");
-                return;
-            }
-
             try {
                 tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: clientIdInput,
+                    client_id: DEFAULT_CLIENT_ID,
                     scope: SCOPES,
                     callback: (tokenResponse) => {
                         if (tokenResponse.error !== undefined) {
@@ -510,13 +488,6 @@
         }
 
         function handleAuthClick() {
-            const savedId = localStorage.getItem('vault_gsi_client_id');
-            if (!savedId) {
-                showToast("請先配置您的 Google Client ID");
-                showSettingsModal();
-                return;
-            }
-
             if (!tokenClient) {
                 initGoogleAuth();
                 if (!tokenClient) {
@@ -565,32 +536,6 @@
                 console.error("獲取用戶資料失敗: ", e);
             }
         }
-
-        // --- 設定視窗控制 ---
-        window.showSettingsModal = () => {
-            const modal = document.getElementById('settingsModal');
-            const input = document.getElementById('gsiClientIdInput');
-            if (modal) modal.classList.remove('hidden');
-            if (input) input.value = localStorage.getItem('vault_gsi_client_id') || '';
-        };
-
-        window.hideSettingsModal = () => {
-            const modal = document.getElementById('settingsModal');
-            if (modal) modal.classList.add('hidden');
-        };
-
-        window.saveSettings = () => {
-            const input = document.getElementById('gsiClientIdInput').value.trim();
-            if (input) {
-                localStorage.setItem('vault_gsi_client_id', input);
-                showToast("Client ID 設定成功！網頁重新載入中...");
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                localStorage.removeItem('vault_gsi_client_id');
-                showToast("已回復為本地離線模式。網頁重新載入中...");
-                setTimeout(() => location.reload(), 1000);
-            }
-        };
 
         // --- 沙盒說明 Modal 控制 ---
         function showSandboxHelpModal() {
@@ -892,6 +837,7 @@
             document.getElementById('preview-value').innerText = '$' + (parseInt(document.getElementById('itemValue').value) || 0).toLocaleString();
         }
 
+        // 雖然不用手動配置，依然預留更新類別的邏輯
         function updateCategoryDropdown() {
             document.getElementById('itemCategory').innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
         }
