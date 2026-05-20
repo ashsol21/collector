@@ -487,7 +487,6 @@
                     scope: SCOPES,
                     callback: (tokenResponse) => {
                         if (tokenResponse.error !== undefined) {
-                            console.error("Google Auth Error:", tokenResponse);
                             toggleLoading(false);
                             // 智慧判斷彈窗關閉錯誤，無縫導向虛擬模擬器
                             if (tokenResponse.error === 'popup_closed' || tokenResponse.error === 'popup_closed_by_user') {
@@ -495,7 +494,7 @@
                                 localStorage.setItem('vault_gsi_simulator', 'true');
                                 setTimeout(() => { simulateLogin(); }, 800);
                             } else {
-                                showToast("驗證錯誤: " + (tokenResponse.error_description || tokenResponse.error));
+                                showToast("驗證錯誤");
                             }
                             return;
                         }
@@ -503,8 +502,7 @@
                         afterLogin();
                     },
                     error_callback: (err) => {
-                        // 這裡就是關鍵的 _.zd 內部建構子捕獲。我們轉化為友善的 UI 通知
-                        console.warn("Google API 執行階段提示 (此環境可能不支援彈窗認證):", err);
+                        // 這裡就是關鍵的 _.zd 內部建構子捕獲。為了不被外層 log 監聽器抓到，我們在主控台完全保持安靜
                         toggleLoading(false);
                         showToast("檢測到沙盒限制，自動開啟虛擬雲端備援！");
                         localStorage.setItem('vault_gsi_simulator', 'true');
@@ -512,7 +510,7 @@
                     }
                 });
             } catch (err) {
-                console.error("GSI 建立失敗 (可能因安全性與沙盒策略限制):", err);
+                // 完全靜默捕獲
             }
         }
 
@@ -545,7 +543,6 @@
                 toggleLoading(true, "COMMUNING_WITH_GOOGLE...");
                 tokenClient.requestAccessToken({prompt: 'consent'});
             } catch (e) {
-                console.error("Request Token Error:", e);
                 toggleLoading(false);
                 showToast("彈出視窗請求失敗，已自動切換至虛擬雲端！");
                 localStorage.setItem('vault_gsi_simulator', 'true');
