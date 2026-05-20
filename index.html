@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Identity Services -->
-    <script src="https://accounts.google.com/gsi/client"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
         :root {
@@ -82,9 +82,12 @@
         </nav>
 
         <div class="p-6 border-t border-white/5">
-            <div id="auth-section">
-                <button onclick="handleAuthClick()" class="w-full py-3 text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition border border-indigo-500/30 flex items-center justify-center gap-2">
+            <div id="auth-section" class="flex gap-2">
+                <button onclick="handleAuthClick()" class="flex-1 py-3 text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition border border-indigo-500/30 flex items-center justify-center gap-2">
                     <i class="fab fa-google"></i> 登入雲端同步
+                </button>
+                <button onclick="showSettingsModal()" class="px-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl transition border border-white/10" title="設定 Google Client ID">
+                    <i class="fas fa-cog"></i>
                 </button>
             </div>
             <div id="user-profile" class="hidden flex items-center gap-3 p-3 bg-indigo-500/5 rounded-xl border border-indigo-500/20">
@@ -193,9 +196,25 @@
         </div>
     </div>
 
+    <!-- 設定 Google Client ID Modal -->
+    <div id="settingsModal" class="hidden fixed inset-0 z-[202] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="glass rounded-3xl w-full max-w-md overflow-hidden border border-white/10">
+            <div class="p-6 border-b border-white/5 bg-white/5 flex justify-between items-center">
+                <h3 class="text-xs font-bold text-white tech-font uppercase">Google API Configuration</h3>
+                <button onclick="hideSettingsModal()" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-8 space-y-4">
+                <p class="text-xs text-slate-400 leading-relaxed">由於 Google 的安全機制，真實雲端同步需要您提供專屬的 OAuth 2.0 Client ID。請於 Google Cloud Console 申請後在此填入：</p>
+                <input type="text" id="gsiClientIdInput" placeholder="xxxxxx.apps.googleusercontent.com" class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white text-xs outline-none focus:border-indigo-500 tech-font">
+                <div class="flex gap-3 pt-2">
+                    <button onclick="saveSettings()" class="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold tech-font hover:bg-indigo-500 transition">SAVE_CONFIG</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- 設定 (Google API) ---
-        // 請確保您已在 Google Cloud Console 啟動 Google Drive API，並將網址加入授權來源
         const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email';
         let tokenClient;
         let accessToken = null;
@@ -224,15 +243,27 @@
 
         // --- Google Auth 邏輯 ---
         function initGoogleAuth() {
+            // 檢查 Google Client SDK 是否載入完成
+            if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+                console.warn("Google Identity Services SDK 未載入，改為離線/本地模式運作。");
+                return;
+            }
+
+            const clientIdInput = localStorage.getItem('vault_gsi_client_id') || '';
+
+            // 如果沒有填寫自定義的 Client ID，或者使用的是預設 dummy，我們不進行初始化，以防止 _.zd 崩潰
+            if (!clientIdInput || clientIdInput.includes('8f8f8f') || clientIdInput.includes('YOUR_')) {
+                console.log("目前為本地離線模式。若要開啟雲端同步，請點擊左下角齒輪圖示配置有效的 Google Client ID。");
+                return;
+            }
+
             try {
-                // 如果您是從本地測試，請務必填寫有效的 Client ID
                 tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: '86161491147-3q4j9f2r7o1g0i0t7q8r9g9v8f8f8f8f.apps.googleusercontent.com', // 範例格式，請替換
+                    client_id: clientIdInput,
                     scope: SCOPES,
                     callback: (tokenResponse) => {
                         if (tokenResponse.error !== undefined) {
                             console.error("Google Auth Error:", tokenResponse);
-                            // 如果彈窗被手動關閉，tokenResponse.error 會是 "popup_closed_by_user"
                             if (tokenResponse.error === 'popup_closed_by_user') {
                                 showToast("驗證視窗已關閉，請重試");
                             } else {
@@ -246,7 +277,6 @@
                     },
                     error_callback: (err) => {
                         console.error("Initialization Error:", err);
-                        // 這是捕捉 Popup window closed 的關鍵點
                         if (err.type === 'popup_closed') {
                             showToast("視窗意外關閉，請重新點擊登入");
                         }
@@ -254,28 +284,33 @@
                     }
                 });
             } catch (err) {
-                console.error("Google SDK Load Error:", err);
+                console.error("GSI 初始化捕獲異常 (Client ID 無效或安全性原則限制):", err);
             }
         }
 
         function handleAuthClick() {
+            const savedId = localStorage.getItem('vault_gsi_client_id');
+            if (!savedId) {
+                showToast("請點擊齒輪設定您的 Google Client ID");
+                showSettingsModal();
+                return;
+            }
+
             if (!tokenClient) {
-                // 如果初始化失敗，嘗試重新載入
                 initGoogleAuth();
-                if (!tokenClient) return showToast("SDK 初始化失敗，請檢查網路或 Client ID");
+                if (!tokenClient) return showToast("SDK 授權失敗，請確認您的 Client ID 是否正確");
             }
             
             try {
-                // 請求存取權杖
                 tokenClient.requestAccessToken({prompt: 'consent'});
             } catch (e) {
                 console.error("Request Token Error:", e);
-                showToast("開啟登入視窗失敗，請檢查是否被瀏覽器攔截");
+                showToast("開啟登入視窗失敗，請確認彈出視窗未被阻擋");
             }
         }
 
         function handleSignoutClick() {
-            if (accessToken) {
+            if (accessToken && typeof google !== 'undefined') {
                 google.accounts.oauth2.revoke(accessToken, () => {
                     accessToken = null;
                     currentUserEmail = null;
@@ -304,6 +339,32 @@
                 console.error(e);
             }
         }
+
+        // --- 設定視窗控制 ---
+        window.showSettingsModal = () => {
+            const modal = document.getElementById('settingsModal');
+            const input = document.getElementById('gsiClientIdInput');
+            if (modal) modal.classList.remove('hidden');
+            if (input) input.value = localStorage.getItem('vault_gsi_client_id') || '';
+        };
+
+        window.hideSettingsModal = () => {
+            const modal = document.getElementById('settingsModal');
+            if (modal) modal.classList.add('hidden');
+        };
+
+        window.saveSettings = () => {
+            const input = document.getElementById('gsiClientIdInput').value.trim();
+            if (input) {
+                localStorage.setItem('vault_gsi_client_id', input);
+                showToast("設定已儲存！重整頁面中...");
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                localStorage.removeItem('vault_gsi_client_id');
+                showToast("已恢復為離線本地模式。");
+                setTimeout(() => location.reload(), 1000);
+            }
+        };
 
         // --- 雲端同步核心 ---
         async function syncData(forceUpload = false) {
