@@ -3,79 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vault.OS - Google Cloud Sync</title>
+    <title>VaultOS - Dark Fantasy Cloud Sync</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+        
         :root {
-            --neon-blue: #6366f1;
-            --bg-dark: #020617;
+            --gothic-red: #991b1b;
+            --gothic-dark: #070a13;
+            --bone-white: #e2e8f0;
+            --moon-glow: rgba(148, 163, 184, 0.08);
         }
+
         body { 
-            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
-            background-color: var(--bg-dark);
-            background-image: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 50%);
+            font-family: 'Cinzel', 'PingFang TC', 'Microsoft JhengHei', serif;
+            background-color: var(--gothic-dark);
+            /* 月光光暈背景效果 */
+            background-image: 
+                radial-gradient(circle at 60% 30%, rgba(226, 232, 240, 0.07) 0%, rgba(99, 102, 241, 0.02) 40%, transparent 70%),
+                linear-gradient(rgba(15, 23, 42, 0.4) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(15, 23, 42, 0.4) 1px, transparent 1px);
+            background-size: 100% 100%, 32px 32px, 32px 32px;
         }
-        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .sidebar-item.active { background: linear-gradient(90deg, rgba(99, 102, 241, 0.2) 0%, transparent 100%); color: #818cf8; border-left: 3px solid #6366f1; }
+
+        .gothic-font { font-family: 'Cinzel', serif; }
         .tech-font { font-family: 'JetBrains Mono', monospace; }
-        .loading-overlay { background: rgba(2, 6, 23, 0.9); z-index: 1000; }
+
+        /* 骨骼與暗黑質感容器 */
+        .gothic-card {
+            background: linear-gradient(135deg, rgba(20, 26, 40, 0.9) 0%, rgba(10, 12, 22, 0.95) 100%);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            position: relative;
+        }
+
+        /* 鎖鏈邊界與尖刺藤蔓裝飾 */
+        .gothic-border {
+            position: relative;
+        }
+        .gothic-border::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border: 1px dashed rgba(148, 163, 184, 0.2);
+            pointer-events: none;
+            margin: 4px;
+            border-radius: inherit;
+        }
+
+        .sidebar-item {
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid transparent;
+        }
+        .sidebar-item:hover {
+            background: rgba(226, 232, 240, 0.03);
+            border-color: rgba(148, 163, 184, 0.1);
+        }
+        .sidebar-item.active { 
+            background: linear-gradient(90deg, rgba(226, 232, 240, 0.05) 0%, transparent 100%); 
+            color: #ffffff; 
+            border-left: 3px solid #e2e8f0;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        /* 仿製手繪雕刻線條 */
+        .engraved-title {
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+            letter-spacing: 0.15em;
+        }
+
+        .star-active { color: #f59e0b; text-shadow: 0 0 8px rgba(245, 158, 11, 0.6); }
+        .loading-overlay { background: rgba(5, 7, 12, 0.95); z-index: 1000; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .input-glow:focus { box-shadow: 0 0 15px rgba(99, 102, 241, 0.2); border-color: rgba(99, 102, 241, 0.5); }
-        #drop-zone.dragover { border-color: #6366f1; background: rgba(99, 102, 241, 0.1); }
+        
+        #drop-zone.dragover { 
+            border-color: #e2e8f0; 
+            background: rgba(255, 255, 255, 0.03); 
+        }
+
+        /* 自訂滾動條 */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.15); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.3); }
     </style>
 </head>
-<body class="text-slate-300 min-h-screen flex">
+<body class="text-slate-400 min-h-screen flex">
 
     <!-- 系統通知彈窗 -->
-    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 glass px-6 py-3 rounded-full text-xs tech-font tracking-widest text-indigo-400 z-[999] opacity-0 transition-opacity pointer-events-none border border-indigo-500/30">
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 glass px-6 py-3 rounded-full text-xs tech-font tracking-widest text-slate-300 z-[999] opacity-0 transition-opacity pointer-events-none border border-white/10 shadow-2xl">
         SYSTEM_NOTIFICATION
     </div>
 
     <!-- 詢問視窗 (Custom Modal) -->
-    <div id="confirmModal" class="hidden fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-        <div class="glass p-8 rounded-3xl w-full max-w-sm border border-white/10 text-center">
-            <i class="fas fa-exclamation-triangle text-amber-500 text-3xl mb-4"></i>
-            <h3 class="text-white font-bold mb-2">確認刪除分類？</h3>
-            <p id="confirmMessage" class="text-xs text-slate-400 mb-6 leading-relaxed">該分類下的所有項目將被移至「未分類」。</p>
+    <div id="confirmModal" class="hidden fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+        <div class="gothic-card gothic-border p-8 rounded-3xl w-full max-w-sm text-center">
+            <i class="fas fa-skull text-slate-500 text-3xl mb-4 animate-pulse"></i>
+            <h3 class="text-white font-bold mb-2 gothic-font tracking-wider">確認淨化分類？</h3>
+            <p id="confirmMessage" class="text-xs text-slate-400 mb-6 leading-relaxed">該領域下的所有遺物將被引導移至「其他」。</p>
             <div class="flex gap-4">
-                <button id="cancelConfirm" class="flex-1 py-3 bg-white/5 rounded-xl text-xs font-bold tech-font">CANCEL</button>
-                <button id="executeConfirm" class="flex-1 py-3 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold tech-font">DELETE</button>
+                <button id="cancelConfirm" class="flex-1 py-3 bg-white/5 rounded-xl text-xs font-bold tech-font hover:bg-white/10 transition">ABORT</button>
+                <button id="executeConfirm" class="flex-1 py-3 bg-red-950/40 text-red-400 border border-red-900/30 rounded-xl text-xs font-bold tech-font hover:bg-red-900/20 transition">PURGE</button>
             </div>
         </div>
     </div>
 
     <!-- 載入中遮罩 -->
     <div id="loading" class="hidden fixed inset-0 flex flex-col items-center justify-center loading-overlay">
-        <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p id="loading-text" class="tech-font tracking-widest text-indigo-400 uppercase">Syncing_with_Cloud...</p>
+        <!-- 骨質加載動畫 -->
+        <div class="relative w-16 h-16 flex items-center justify-center">
+            <div class="absolute inset-0 border-4 border-slate-800 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-t-slate-300 rounded-full animate-spin"></div>
+            <i class="fas fa-ghost text-slate-400 text-xl absolute"></i>
+        </div>
+        <p id="loading-text" class="tech-font tracking-widest text-slate-300 uppercase mt-6 text-xs">COMMUNING_WITH_SOULS...</p>
     </div>
 
     <!-- 左側側邊欄 -->
-    <aside class="w-72 glass border-r border-white/5 flex flex-col h-screen sticky top-0 z-50">
+    <aside class="w-72 gothic-card border-r border-white/5 flex flex-col h-screen sticky top-0 z-50">
         <div class="p-8">
             <div class="flex items-center gap-4 mb-2">
-                <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-[0_0_20px_rgba(79,70,229,0.4)]">
-                    <i class="fas fa-cloud"></i>
+                <!-- 經典骷髏死神主題 Logo -->
+                <div class="w-10 h-10 bg-gradient-to-br from-slate-700 to-slate-900 rounded-lg flex items-center justify-center text-slate-300 shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-white/10">
+                    <i class="fas fa-skull"></i>
                 </div>
-                <h1 class="text-xl font-bold tracking-widest text-white">VAULT<span class="text-indigo-500">.GS</span></h1>
+                <h1 class="text-xl font-black tracking-widest text-white gothic-font engraved-title">VaultOS</h1>
             </div>
-            <p class="text-[10px] text-slate-500 tech-font">CLOUD_SYNC_ENABLED</p>
+            <p class="text-[9px] text-slate-500 tech-font tracking-widest">SOUL_STORAGE_ACTIVE</p>
         </div>
 
-        <div class="px-6 py-2 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            <span>系統分類 / SECTORS</span>
-            <button onclick="showAddCategoryModal()" class="hover:text-indigo-400 transition">
+        <div class="px-6 py-2 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest gothic-font">
+            <span>領域分類 / SECTORS</span>
+            <button onclick="showAddCategoryModal()" class="hover:text-white transition">
                 <i class="fas fa-plus-circle text-xs"></i>
             </button>
         </div>
 
         <nav class="flex-1 px-4 space-y-1 overflow-y-auto no-scrollbar" id="category-list-nav">
-            <button onclick="filterByCategory('全部')" id="btn-filter-all" class="sidebar-item active w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all group">
-                <span class="flex items-center gap-3"><i class="fas fa-layer-group"></i> 全部節點</span>
+            <button onclick="filterByCategory('全部')" id="btn-filter-all" class="sidebar-item active w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-all group gothic-font">
+                <span class="flex items-center gap-3"><i class="fas fa-layer-group opacity-40"></i> 全部遺物</span>
                 <span class="text-[10px] tech-font opacity-40" id="total-count-badge">0</span>
             </button>
             <div id="category-list" class="pt-2 space-y-1"></div>
@@ -83,20 +154,22 @@
 
         <div class="p-6 border-t border-white/5">
             <div id="auth-section" class="flex gap-2">
-                <button onclick="handleAuthClick()" class="flex-1 py-3 text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition border border-indigo-500/30 flex items-center justify-center gap-2">
-                    <i class="fab fa-google"></i> 登入雲端同步
+                <button onclick="handleAuthClick()" class="flex-1 py-3 text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition border border-white/10 flex items-center justify-center gap-2">
+                    <i class="fab fa-google"></i> 儀式連結
                 </button>
-                <button onclick="showSettingsModal()" class="px-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl transition border border-white/10" title="設定 Google Client ID">
+                <button onclick="showSettingsModal()" class="px-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl transition border border-white/10" title="Google API 參數配置">
                     <i class="fas fa-cog"></i>
                 </button>
             </div>
-            <div id="user-profile" class="hidden flex items-center gap-3 p-3 bg-indigo-500/5 rounded-xl border border-indigo-500/20">
-                <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold" id="user-initial">U</div>
-                <div class="flex-1 overflow-hidden">
-                    <p class="text-[10px] font-bold text-slate-200 truncate tech-font" id="user-email">USER@CLOUD</p>
-                    <button onclick="handleSignoutClick()" class="text-[8px] text-red-400 hover:text-red-300 uppercase tracking-tighter">Sign_Out</button>
+            <div id="user-profile" class="hidden flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+                <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 border border-white/10" id="user-initial">
+                    <i class="fas fa-user-ninja"></i>
                 </div>
-                <button onclick="syncData(true)" class="text-indigo-400 hover:rotate-180 transition-transform duration-500">
+                <div class="flex-1 overflow-hidden">
+                    <p class="text-[10px] font-bold text-slate-200 truncate tech-font" id="user-email">SOUL@CLOUD</p>
+                    <button onclick="handleSignoutClick()" class="text-[8px] text-red-400 hover:text-red-300 uppercase tracking-tighter tech-font">DISCONNECT</button>
+                </div>
+                <button onclick="syncData(true)" class="text-slate-400 hover:text-white transition-all">
                     <i class="fas fa-sync-alt text-xs"></i>
                 </button>
             </div>
@@ -105,63 +178,191 @@
 
     <!-- 主要內容 -->
     <main class="flex-1 flex flex-col h-screen overflow-hidden">
-        <header class="glass border-b border-white/5 px-10 py-6 flex items-center justify-between">
+        <!-- 頂部搜索列 -->
+        <header class="gothic-card border-b border-white/5 px-10 py-6 flex items-center justify-between">
             <div class="relative w-full max-w-md">
-                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500 text-xs"></i>
-                <input type="text" id="searchInput" oninput="renderCollections()" placeholder="SEARCH_VAULT..." 
-                    class="w-full bg-white/5 border border-white/10 rounded-full py-2 px-12 text-sm focus:border-indigo-500 transition tech-font text-white outline-none">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 text-xs"></i>
+                <input type="text" id="searchInput" oninput="renderCollections()" placeholder="搜尋深淵遺產..." 
+                    class="w-full bg-slate-950/60 border border-white/10 rounded-full py-2 px-12 text-sm focus:border-slate-500 transition text-white outline-none">
             </div>
-            <div class="flex items-center gap-4">
-                <span class="text-[10px] tech-font text-slate-500 uppercase">Found: <span id="filtered-count" class="text-indigo-400">0</span></span>
-                <button onclick="showAddItemModal()" class="bg-indigo-600 text-white px-6 py-2.5 rounded-full font-bold text-sm hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.3)]">
-                    + NEW_RECORD
+            <div class="flex items-center gap-6">
+                <span class="text-[10px] tech-font text-slate-500 uppercase">在庫總數: <span id="filtered-count" class="text-white font-bold">0</span></span>
+                <button onclick="showAddItemModal()" class="bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition border border-white/10 shadow-lg">
+                    + 束縛新遺物
                 </button>
             </div>
         </header>
 
-        <div class="flex-1 overflow-y-auto p-10 no-scrollbar">
-            <div id="collection-container" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
-            <div id="empty-state" class="hidden flex flex-col items-center justify-center py-40">
-                <i class="fas fa-database text-slate-800 text-4xl mb-4"></i>
-                <p class="text-xs tech-font text-slate-600 uppercase tracking-widest">Vault_Empty</p>
+        <!-- 滾動展示區 -->
+        <div class="flex-1 overflow-y-auto p-10 no-scrollbar space-y-10">
+            
+            <!-- 暗黑統計三大卡片區 (比照 image_bc63b7.png 設計) -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- 卡片 1 -->
+                <div class="gothic-card gothic-border p-6 rounded-2xl flex flex-col justify-between h-40">
+                    <div class="flex justify-between items-start">
+                        <span class="text-[10px] font-bold tracking-widest text-slate-500 gothic-font uppercase">Artifact Count (Total)</span>
+                        <i class="fas fa-link text-slate-700 text-lg"></i>
+                    </div>
+                    <div class="mt-4 flex items-baseline gap-2">
+                        <span id="stat-total-artifacts" class="text-4xl font-light text-white tech-font">0</span>
+                        <span class="text-[10px] text-slate-600 tech-font">ITEMS</span>
+                    </div>
+                </div>
+
+                <!-- 卡片 2 -->
+                <div class="gothic-card gothic-border p-6 rounded-2xl flex flex-col justify-between h-40">
+                    <div class="flex justify-between items-start">
+                        <span class="text-[10px] font-bold tracking-widest text-slate-500 gothic-font uppercase">High Rating</span>
+                        <i class="fas fa-star text-slate-700 text-lg"></i>
+                    </div>
+                    <div class="mt-4 flex items-baseline gap-2">
+                        <span id="stat-high-rating" class="text-4xl font-light text-white tech-font">0</span>
+                        <span class="text-[10px] text-slate-600 tech-font">COMMITTED</span>
+                    </div>
+                </div>
+
+                <!-- 卡片 3 -->
+                <div class="gothic-card gothic-border p-6 rounded-2xl flex flex-col justify-between h-40">
+                    <div class="flex justify-between items-start">
+                        <span class="text-[10px] font-bold tracking-widest text-slate-500 gothic-font uppercase">Cursed Sectors</span>
+                        <i class="fas fa-bone text-slate-700 text-lg"></i>
+                    </div>
+                    <div class="mt-4 flex items-baseline gap-2">
+                        <span id="stat-cursed-sectors" class="text-4xl font-light text-white tech-font">0</span>
+                        <span class="text-[10px] text-slate-600 tech-font">SECTORS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下方大型死神展示牆與清單 -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- 左側：焦點選中遺物展示區 (完美還原 grim reaper 巨大卡片) -->
+                <div class="lg:col-span-7 gothic-card gothic-border rounded-3xl overflow-hidden p-8 flex flex-col justify-between min-h-[400px] relative">
+                    <!-- 背景月亮與煙霧 SVG -->
+                    <div class="absolute inset-0 opacity-15 pointer-events-none flex items-center justify-center">
+                        <svg class="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                            <circle cx="50" cy="50" r="30" fill="white" filter="blur(1px)"/>
+                            <path d="M10,90 Q50,60 90,90 Z" fill="#111827"/>
+                        </svg>
+                    </div>
+                    
+                    <!-- 寫實風死神骨骼插圖 (純 SVG 精緻渲染) -->
+                    <div class="absolute right-4 bottom-0 w-72 h-72 opacity-25 pointer-events-none">
+                        <svg viewBox="0 0 100 100" class="w-full h-full">
+                            <!-- 斗篷與面罩 -->
+                            <path d="M50,10 C35,25 35,45 38,70 L62,70 C65,45 65,25 50,10 Z" fill="black" stroke="#2d3748" stroke-width="0.5"/>
+                            <!-- 陰影黑洞 -->
+                            <path d="M44,22 C44,22 50,16 56,22 C56,32 44,32 44,22 Z" fill="#0c0f1d"/>
+                            <!-- 骷髏臉部細節 -->
+                            <path d="M47,24 Q50,22 53,24 Q54,28 50,28 Q46,28 47,24 Z" fill="#cbd5e1"/>
+                            <circle cx="48.5" cy="25" r="1" fill="red"/>
+                            <circle cx="51.5" cy="25" r="1" fill="red"/>
+                            <!-- 鐮刀 -->
+                            <path d="M65,15 Q30,5 25,20 L30,22 Q35,10 65,18 Z" fill="#4a5568" stroke="#718096" stroke-width="0.5"/>
+                            <line x1="60" y1="17" x2="60" y2="90" stroke="#2d3748" stroke-width="1.5"/>
+                            <!-- 肋骨 -->
+                            <path d="M45,45 C40,45 42,48 45,48 M55,45 C60,45 58,48 55,48 M45,52 C38,52 41,55 45,55 M55,52 C62,52 59,55 55,55" stroke="#cbd5e1" stroke-width="1" fill="none"/>
+                        </svg>
+                    </div>
+
+                    <div class="z-10 flex justify-between items-start">
+                        <span class="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[9px] tech-font text-slate-300 uppercase tracking-widest">Active Focus</span>
+                        <div class="text-right">
+                            <p class="text-[9px] text-slate-500 uppercase tech-font">Sector Map</p>
+                            <p id="focus-sector" class="text-xs text-slate-300 font-bold gothic-font">Sect-01</p>
+                        </div>
+                    </div>
+
+                    <div class="z-10 space-y-4 mt-20">
+                        <div class="space-y-1">
+                            <p class="text-[10px] text-slate-500 uppercase tracking-widest tech-font">Artifact Label</p>
+                            <h2 id="focus-title" class="text-3xl font-black text-white gothic-font tracking-wide">Ancient Hand of Jack</h2>
+                        </div>
+                        <div class="flex items-center gap-6 pt-4 border-t border-white/5">
+                            <div>
+                                <p class="text-[9px] text-slate-500 uppercase tech-font">Bound Date</p>
+                                <p id="focus-date" class="text-xs text-slate-300 tech-font">2026-04-29</p>
+                            </div>
+                            <div>
+                                <p class="text-[9px] text-slate-500 uppercase tech-font">Integrity</p>
+                                <div id="focus-stars" class="text-amber-500 text-xs flex gap-0.5">
+                                    <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="text-[9px] text-slate-500 uppercase tech-font">Assessed Price</p>
+                                <p id="focus-value" class="text-emerald-400 text-xs tech-font font-bold">$1,000</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右側：資料清單 -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div class="flex justify-between items-center px-2">
+                        <span class="text-xs text-slate-500 font-bold gothic-font uppercase">Inventory Log</span>
+                        <i class="fas fa-list-ul text-slate-600"></i>
+                    </div>
+                    <div id="collection-container" class="space-y-3 max-h-[450px] overflow-y-auto pr-1">
+                        <!-- 動態填充 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 空數據顯示 -->
+            <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 bg-slate-950/20 rounded-3xl border border-dashed border-white/10 text-slate-500">
+                <i class="fas fa-circle-nodes text-4xl mb-4 opacity-30"></i>
+                <p class="text-xs gothic-font tracking-widest uppercase">No Bound Artifacts</p>
             </div>
         </div>
     </main>
 
     <!-- 新增項目 Modal -->
-    <div id="addItemModal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
-        <div class="glass rounded-[2rem] w-full max-w-5xl overflow-hidden border border-white/10 shadow-2xl flex flex-col lg:flex-row max-h-[90vh]">
+    <div id="addItemModal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
+        <div class="gothic-card gothic-border rounded-[2rem] w-full max-w-4xl overflow-hidden border border-white/10 shadow-2xl flex flex-col lg:flex-row max-h-[90vh]">
             <div class="flex-1 p-10 overflow-y-auto no-scrollbar border-r border-white/5">
-                <div class="mb-8"><h3 class="text-xl font-bold text-white tech-font uppercase">Add_To_Vault</h3></div>
+                <div class="mb-8"><h3 class="text-xl font-bold text-white gothic-font uppercase">束縛新的深淵遺物</h3></div>
                 <div class="space-y-6">
                     <div class="group">
                         <label class="block text-[10px] text-slate-500 tech-font mb-2 uppercase">Image_Data</label>
-                        <div id="drop-zone" class="relative w-full h-40 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all hover:border-indigo-500/50">
+                        <div id="drop-zone" class="relative w-full h-40 border border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all hover:border-slate-500">
                             <input type="file" id="fileInput" accept="image/*" class="hidden">
                             <div id="drop-zone-content" class="text-center">
-                                <i class="fas fa-upload text-2xl text-indigo-500/50 mb-2"></i>
-                                <p class="text-[10px] text-slate-400 tech-font">拖放或點擊上傳圖片</p>
+                                <i class="fas fa-skull text-xl text-slate-600 mb-2"></i>
+                                <p class="text-[10px] text-slate-400 tech-font">拖放影像 或 點擊此處上傳</p>
                             </div>
-                            <img id="image-preview-thumbnail" class="hidden absolute inset-0 w-full h-full object-cover rounded-2xl opacity-50">
+                            <img id="image-preview-thumbnail" class="hidden absolute inset-0 w-full h-full object-cover rounded-2xl opacity-40">
                         </div>
                     </div>
                     <div class="group">
                         <label class="block text-[10px] text-slate-500 tech-font mb-2 uppercase">Label</label>
-                        <input type="text" id="itemName" oninput="updatePreview()" placeholder="輸入名稱..." class="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-5 text-white outline-none focus:border-indigo-500">
+                        <input type="text" id="itemName" oninput="updatePreview()" placeholder="例如: Ancient Hand of Jack" class="w-full bg-slate-950/60 border border-white/10 rounded-2xl py-3 px-5 text-white outline-none focus:border-slate-500">
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-[10px] text-slate-500 tech-font mb-2 uppercase">Category</label>
-                            <select id="itemCategory" onchange="updatePreview()" class="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-5 text-white outline-none appearance-none"></select>
+                            <label class="block text-[10px] text-slate-500 tech-font mb-2 uppercase">Category / Sector</label>
+                            <select id="itemCategory" onchange="updatePreview()" class="w-full bg-slate-950/60 border border-white/10 rounded-2xl py-3 px-5 text-white outline-none appearance-none cursor-pointer"></select>
                         </div>
                         <div>
-                            <label class="block text-[10px] text-slate-500 tech-font mb-2 uppercase">Value</label>
-                            <input type="number" id="itemValue" oninput="updatePreview()" placeholder="0" class="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-5 text-white outline-none">
+                            <label class="block text-[10px] text-slate-500 tech-font mb-2 uppercase">Assessed Value</label>
+                            <input type="number" id="itemValue" oninput="updatePreview()" placeholder="0" class="w-full bg-slate-950/60 border border-white/10 rounded-2xl py-3 px-5 text-white outline-none">
+                        </div>
+                    </div>
+                    <!-- 評分調整 -->
+                    <div>
+                        <label class="block text-[10px] text-slate-500 tech-font mb-2 uppercase">Integrity Index (1-5)</label>
+                        <div class="flex gap-3 text-xl p-1" id="star-input">
+                            <i class="far fa-star cursor-pointer star-btn transition-colors hover:text-amber-500" data-value="1"></i>
+                            <i class="far fa-star cursor-pointer star-btn transition-colors hover:text-amber-500" data-value="2"></i>
+                            <i class="far fa-star cursor-pointer star-btn transition-colors hover:text-amber-500" data-value="3"></i>
+                            <i class="far fa-star cursor-pointer star-btn transition-colors hover:text-amber-500" data-value="4"></i>
+                            <i class="far fa-star cursor-pointer star-btn transition-colors hover:text-amber-500" data-value="5"></i>
                         </div>
                     </div>
                     <div class="flex gap-4 pt-4">
                         <button onclick="hideAddItemModal()" class="flex-1 bg-white/5 text-slate-400 py-4 rounded-2xl font-bold tech-font hover:bg-white/10 transition uppercase">Cancel</button>
-                        <button id="commitBtn" onclick="saveNewItem()" class="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl font-bold tech-font hover:bg-indigo-500 transition uppercase">Save_Record</button>
+                        <button id="commitBtn" onclick="saveNewItem()" class="flex-[2] bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-bold tech-font transition uppercase">Save_Record</button>
                     </div>
                 </div>
             </div>
@@ -170,7 +371,7 @@
                 <div id="live-preview" class="w-full glass rounded-2xl overflow-hidden border border-indigo-500/30">
                     <div class="w-full h-40 bg-white/5 flex items-center justify-center overflow-hidden">
                         <img id="preview-img-display" class="hidden w-full h-full object-cover">
-                        <i class="fas fa-image text-3xl text-indigo-500/20" id="preview-placeholder"></i>
+                        <i class="fas fa-ghost text-3xl text-indigo-500/20" id="preview-placeholder"></i>
                     </div>
                     <div class="p-4">
                         <span id="preview-cat" class="text-[8px] tech-font text-indigo-400 border border-indigo-500/30 px-1.5 py-0.5 rounded uppercase">CATEGORY</span>
@@ -184,30 +385,39 @@
 
     <!-- 新增分類 Modal -->
     <div id="addCategoryModal" class="hidden fixed inset-0 z-[201] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-        <div class="glass rounded-3xl w-full max-w-sm overflow-hidden border border-white/10">
-            <div class="p-6 border-b border-white/5 flex justify-between items-center">
+        <div class="gothic-card gothic-border rounded-3xl w-full max-w-sm overflow-hidden border border-white/10">
+            <div class="p-6 border-b border-white/5 bg-white/5 flex justify-between items-center">
                 <h3 class="text-xs font-bold text-white tech-font uppercase">New_Sector</h3>
                 <button onclick="hideAddCategoryModal()" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-8 space-y-4">
-                <input type="text" id="newCategoryName" placeholder="分類名稱..." class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white outline-none focus:border-indigo-500">
-                <button onclick="saveNewCategory()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold tech-font hover:bg-indigo-500 transition">ADD</button>
+                <input type="text" id="newCategoryName" placeholder="新分類領域..." class="w-full bg-slate-950/60 border border-white/10 rounded-xl py-3 px-4 text-white outline-none focus:border-slate-500">
+                <button onclick="saveNewCategory()" class="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold tech-font transition">ADD</button>
             </div>
         </div>
     </div>
 
-    <!-- 設定 Google Client ID Modal -->
+    <!-- 設定 Google Client ID Modal (包含雲端模擬開關) -->
     <div id="settingsModal" class="hidden fixed inset-0 z-[202] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-        <div class="glass rounded-3xl w-full max-w-md overflow-hidden border border-white/10">
+        <div class="gothic-card gothic-border rounded-3xl w-full max-w-md overflow-hidden border border-white/10">
             <div class="p-6 border-b border-white/5 bg-white/5 flex justify-between items-center">
                 <h3 class="text-xs font-bold text-white tech-font uppercase">Google API Configuration</h3>
                 <button onclick="hideSettingsModal()" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-8 space-y-4">
                 <p class="text-xs text-slate-400 leading-relaxed">由於 Google 的安全機制，真實雲端同步需要您提供專屬的 OAuth 2.0 Client ID。請於 Google Cloud Console 申請後在此填入：</p>
-                <input type="text" id="gsiClientIdInput" placeholder="xxxxxx.apps.googleusercontent.com" class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white text-xs outline-none focus:border-indigo-500 tech-font">
+                <input type="text" id="gsiClientIdInput" placeholder="xxxxxx.apps.googleusercontent.com" class="w-full bg-slate-950/60 border border-white/10 rounded-xl py-3 px-4 text-white text-xs outline-none focus:border-slate-500 tech-font">
+                
+                <div class="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 mt-4">
+                    <div>
+                        <p class="text-xs text-white font-bold gothic-font">虛擬雲端模擬器 (Iframe Sandbox 備援)</p>
+                        <p class="text-[9px] text-slate-500">啟用後，所有雲端備份均於虛擬環境中極速模擬運作</p>
+                    </div>
+                    <input type="checkbox" id="gsiSimulatorCheckbox" class="w-4 h-4 cursor-pointer">
+                </div>
+
                 <div class="flex gap-3 pt-2">
-                    <button onclick="saveSettings()" class="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold tech-font hover:bg-indigo-500 transition">SAVE_CONFIG</button>
+                    <button onclick="saveSettings()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold tech-font transition border border-white/10">SAVE_CONFIG</button>
                 </div>
             </div>
         </div>
@@ -221,17 +431,26 @@
         let currentUserEmail = null;
 
         // --- 狀態 ---
-        let collections = [];
-        let categories = ["數位收藏", "實體資產", "加密貨幣"];
+        let collections = [
+            { id: 1, name: 'Ancient Hand of Jack', category: '攝影與藝術', value: 1000, rating: 5, date: '2026-04-29', image: null }
+        ];
+        let categories = ["攝影與藝術", "神秘遺物", "電子信號"];
         let currentFilter = '全部';
         let currentSelectedImage = null;
+        let currentRatingInput = 5;
 
         // --- 初始化 ---
         window.onload = () => {
             loadLocalData();
             initGoogleAuth();
             initImageEvents();
+            initStarEvents();
             renderAll();
+            
+            // 預設將第一個項目設為焦點展示
+            if (collections.length > 0) {
+                setFocusItem(collections[0]);
+            }
         };
 
         function loadLocalData() {
@@ -241,19 +460,22 @@
             if(cats) categories = JSON.parse(cats);
         }
 
-        // --- Google Auth 邏輯 ---
+        // --- Google Auth 邏輯 (極致防禦，徹底阻止 _.zd 崩潰) ---
         function initGoogleAuth() {
-            // 檢查 Google Client SDK 是否載入完成
             if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-                console.warn("Google Identity Services SDK 未載入，改為離線/本地模式運作。");
+                console.warn("Google Identity Services SDK 未載入或已被阻擋，切換為本地運作。");
+                return;
+            }
+
+            const isSimulator = localStorage.getItem('vault_gsi_simulator') === 'true';
+            if (isSimulator) {
+                console.log("模擬雲端功能已啟用。");
                 return;
             }
 
             const clientIdInput = localStorage.getItem('vault_gsi_client_id') || '';
-
-            // 如果沒有填寫自定義的 Client ID，或者使用的是預設 dummy，我們不進行初始化，以防止 _.zd 崩潰
             if (!clientIdInput || clientIdInput.includes('8f8f8f') || clientIdInput.includes('YOUR_')) {
-                console.log("目前為本地離線模式。若要開啟雲端同步，請點擊左下角齒輪圖示配置有效的 Google Client ID。");
+                console.log("目前為本地離線模式。若要開啟雲端同步，請配置有效的 Google Client ID。");
                 return;
             }
 
@@ -264,11 +486,7 @@
                     callback: (tokenResponse) => {
                         if (tokenResponse.error !== undefined) {
                             console.error("Google Auth Error:", tokenResponse);
-                            if (tokenResponse.error === 'popup_closed_by_user') {
-                                showToast("驗證視窗已關閉，請重試");
-                            } else {
-                                showToast("登入錯誤: " + tokenResponse.error);
-                            }
+                            showToast("驗證錯誤: " + (tokenResponse.error_description || tokenResponse.error));
                             toggleLoading(false);
                             return;
                         }
@@ -276,22 +494,32 @@
                         afterLogin();
                     },
                     error_callback: (err) => {
-                        console.error("Initialization Error:", err);
-                        if (err.type === 'popup_closed') {
-                            showToast("視窗意外關閉，請重新點擊登入");
+                        // 這裡就是關鍵的 _.zd 內部建構子捕獲。我們轉化為友善的 UI 通知
+                        console.warn("Google API 執行階段提示 (此環境可能不支援彈窗認證):", err);
+                        
+                        let displayErr = "沙盒安全原則限制 (Sandbox Restrictions)";
+                        if (err && typeof err === 'object') {
+                            displayErr = err.message || err.details || displayErr;
                         }
+                        showToast(`Comm Error: ${displayErr}`);
                         toggleLoading(false);
                     }
                 });
             } catch (err) {
-                console.error("GSI 初始化捕獲異常 (Client ID 無效或安全性原則限制):", err);
+                console.error("GSI 建立失敗 (可能因安全性與沙盒策略限制):", err);
             }
         }
 
         function handleAuthClick() {
+            const isSimulator = localStorage.getItem('vault_gsi_simulator') === 'true';
+            if (isSimulator) {
+                simulateLogin();
+                return;
+            }
+
             const savedId = localStorage.getItem('vault_gsi_client_id');
             if (!savedId) {
-                showToast("請點擊齒輪設定您的 Google Client ID");
+                showToast("請點擊齒輪設定您的 Google Client ID 或開啟雲端模擬");
                 showSettingsModal();
                 return;
             }
@@ -309,7 +537,28 @@
             }
         }
 
+        // --- 虛擬雲端同步模擬器流程 (讓使用者在 Iframe 中也能完美通關) ---
+        function simulateLogin() {
+            toggleLoading(true, "Simulating_Soul_Link...");
+            setTimeout(() => {
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('user-profile').classList.remove('hidden');
+                document.getElementById('user-email').innerText = "SIMULATOR_SOUL@CLOUD";
+                document.getElementById('user-initial').innerText = "S";
+                showToast("VIRTUAL_SOUL_LINKED_SUCCESS");
+                toggleLoading(false);
+            }, 1000);
+        }
+
         function handleSignoutClick() {
+            const isSimulator = localStorage.getItem('vault_gsi_simulator') === 'true';
+            if (isSimulator) {
+                document.getElementById('auth-section').classList.remove('hidden');
+                document.getElementById('user-profile').classList.add('hidden');
+                showToast("VIRTUAL_LINK_DISCONNECTED");
+                return;
+            }
+
             if (accessToken && typeof google !== 'undefined') {
                 google.accounts.oauth2.revoke(accessToken, () => {
                     accessToken = null;
@@ -344,8 +593,10 @@
         window.showSettingsModal = () => {
             const modal = document.getElementById('settingsModal');
             const input = document.getElementById('gsiClientIdInput');
+            const simCheck = document.getElementById('gsiSimulatorCheckbox');
             if (modal) modal.classList.remove('hidden');
             if (input) input.value = localStorage.getItem('vault_gsi_client_id') || '';
+            if (simCheck) simCheck.checked = localStorage.getItem('vault_gsi_simulator') === 'true';
         };
 
         window.hideSettingsModal = () => {
@@ -355,19 +606,33 @@
 
         window.saveSettings = () => {
             const input = document.getElementById('gsiClientIdInput').value.trim();
+            const simCheck = document.getElementById('gsiSimulatorCheckbox').checked;
+            
+            localStorage.setItem('vault_gsi_simulator', simCheck ? 'true' : 'false');
+
             if (input) {
                 localStorage.setItem('vault_gsi_client_id', input);
-                showToast("設定已儲存！重整頁面中...");
+                showToast("參數設定已保存！系統重載中...");
                 setTimeout(() => location.reload(), 1000);
             } else {
                 localStorage.removeItem('vault_gsi_client_id');
-                showToast("已恢復為離線本地模式。");
+                showToast("已回復為本地/模擬模式。系統重載中...");
                 setTimeout(() => location.reload(), 1000);
             }
         };
 
         // --- 雲端同步核心 ---
         async function syncData(forceUpload = false) {
+            const isSimulator = localStorage.getItem('vault_gsi_simulator') === 'true';
+            if (isSimulator) {
+                toggleLoading(true, "Simulating_Soul_Database_Sync...");
+                setTimeout(() => {
+                    toggleLoading(false);
+                    showToast("SIMULATED_CLOUD_DATABASE_RESTORED");
+                }, 1000);
+                return;
+            }
+
             if (!accessToken) return;
             toggleLoading(true, "Syncing_Vault...");
 
@@ -436,11 +701,27 @@
             });
         }
 
+        // --- 焦點遺產展示設置 ---
+        function setFocusItem(item) {
+            document.getElementById('focus-title').innerText = item.name || '未命名';
+            document.getElementById('focus-sector').innerText = item.category || '未分類';
+            document.getElementById('focus-date').innerText = item.date || '無日期';
+            document.getElementById('focus-value').innerText = '$' + (item.value || 0).toLocaleString();
+            
+            let starsHtml = '';
+            const rating = item.rating || 1;
+            for(let i=1; i<=5; i++) {
+                starsHtml += `<i class="${i <= rating ? 'fas' : 'far'} fa-star"></i>`;
+            }
+            document.getElementById('focus-stars').innerHTML = starsHtml;
+        }
+
         // --- 渲染系統 ---
         function renderAll() {
             renderSidebar();
             renderCollections();
             updateCategoryDropdown();
+            renderStats();
         }
 
         function renderSidebar() {
@@ -451,7 +732,7 @@
                 const count = collections.filter(i => i.category === cat).length;
                 return `
                     <div class="group flex items-center gap-1 sidebar-item ${currentFilter === cat ? 'active' : ''} rounded-xl transition-all pr-2">
-                        <button onclick="filterByCategory('${cat}')" class="flex-1 flex items-center justify-between px-4 py-2.5 text-xs font-medium">
+                        <button onclick="filterByCategory('${cat}')" class="flex-1 flex items-center justify-between px-4 py-2.5 text-xs font-semibold gothic-font">
                             <span class="flex items-center gap-3"><i class="fas fa-folder-open opacity-30"></i> ${cat}</span>
                             <span class="tech-font opacity-40">${count}</span>
                         </button>
@@ -477,25 +758,44 @@
             document.getElementById('empty-state').classList.toggle('hidden', filtered.length > 0);
 
             container.innerHTML = filtered.map(item => `
-                <div class="glass rounded-2xl p-4 border border-white/5 hover:border-indigo-500/30 transition group flex items-center gap-4">
-                    <div class="w-16 h-16 bg-white/5 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
-                        ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : `<i class="fas fa-cube text-xl text-indigo-500/20"></i>`}
+                <div onclick="selectFocus(${item.id})" class="glass rounded-2xl p-4 border border-white/5 hover:border-slate-500/50 hover:bg-white/5 cursor-pointer transition-all duration-300 group flex items-center gap-4">
+                    <div class="w-12 h-12 bg-white/5 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-white/5">
+                        ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : `<i class="fas fa-cube text-lg text-slate-600"></i>`}
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-0.5">
-                            <span class="text-[8px] tech-font text-indigo-400 border border-indigo-500/20 px-1 py-0.5 rounded uppercase">${item.category || '未分類'}</span>
-                            <h4 class="font-bold text-white text-sm truncate">${item.name}</h4>
+                            <span class="text-[8px] tech-font text-slate-400 border border-white/10 px-1.5 py-0.2 rounded uppercase">${item.category || '未分類'}</span>
+                            <h4 class="font-bold text-white text-xs truncate gothic-font">${item.name}</h4>
                         </div>
                         <div class="flex items-center gap-4 text-[10px] text-slate-500 tech-font">
                             <span class="text-emerald-500 font-bold">$${item.value.toLocaleString()}</span>
                             <span class="opacity-30">${item.date}</span>
                         </div>
                     </div>
-                    <button onclick="deleteItem(${item.id})" class="opacity-0 group-hover:opacity-100 p-2 text-slate-600 hover:text-red-400 transition">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <span class="text-amber-500 text-[10px]"><i class="fas fa-star mr-1"></i>${item.rating || 5}</span>
+                        <button onclick="deleteItem(event, ${item.id})" class="opacity-0 group-hover:opacity-100 p-2 text-slate-600 hover:text-red-400 transition-all">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
+                    </div>
                 </div>
             `).join('');
+        }
+
+        window.selectFocus = (id) => {
+            const found = collections.find(i => i.id === id);
+            if (found) setFocusItem(found);
+        }
+
+        // --- 統計數據渲染 (還原美感指標) ---
+        function renderStats() {
+            const total = collections.length;
+            const highRating = collections.filter(i => i.rating >= 4).length;
+            const cursedSectors = categories.length;
+
+            document.getElementById('stat-total-artifacts').innerText = total;
+            document.getElementById('stat-high-rating').innerText = highRating;
+            document.getElementById('stat-cursed-sectors').innerText = cursedSectors;
         }
 
         // --- 分類刪除邏輯 ---
@@ -504,8 +804,8 @@
             categoryToDelete = cat;
             const count = collections.filter(i => i.category === cat).length;
             const msg = count > 0 
-                ? `此分類含有 ${count} 個項目。刪除後，這些項目將會被歸類為「未分類」。` 
-                : `確定要移除「${cat}」分類嗎？`;
+                ? `此領域含有 ${count} 個項目。刪除後，這些項目將會被歸類為「未分類」。` 
+                : `確定要移除「${cat}」領域嗎？`;
             
             document.getElementById('confirmMessage').innerText = msg;
             document.getElementById('confirmModal').classList.remove('hidden');
@@ -529,7 +829,7 @@
             renderAll();
             if (accessToken) uploadToCloud();
             document.getElementById('confirmModal').classList.add('hidden');
-            showToast("CATEGORY_REMOVED");
+            showToast("SECTOR_PURGED");
             categoryToDelete = null;
         };
 
@@ -543,22 +843,28 @@
                 name,
                 category: document.getElementById('itemCategory').value,
                 value: parseInt(document.getElementById('itemValue').value) || 0,
+                rating: currentRatingInput,
                 image: currentSelectedImage,
-                date: new Date().toLocaleDateString()
+                date: new Date().toISOString().split('T')[0]
             };
 
             collections.unshift(newItem);
             saveLocal();
             renderAll();
+            setFocusItem(newItem);
             hideAddItemModal();
             resetForm();
             if (accessToken) uploadToCloud();
         }
 
-        function deleteItem(id) {
+        window.deleteItem = (event, id) => {
+            event.stopPropagation();
             collections = collections.filter(i => i.id !== id);
             saveLocal();
             renderAll();
+            if (collections.length > 0) {
+                setFocusItem(collections[0]);
+            }
             if (accessToken) uploadToCloud();
         }
 
@@ -590,6 +896,25 @@
                 document.getElementById('preview-placeholder').classList.add('hidden');
             };
             reader.readAsDataURL(file);
+        }
+
+        function initStarEvents() {
+            const stars = document.querySelectorAll('.star-btn');
+            stars.forEach(star => {
+                star.onclick = () => {
+                    const val = parseInt(star.dataset.value);
+                    currentRatingInput = val;
+                    stars.forEach((s, idx) => {
+                        if(idx < val) {
+                            s.classList.replace('far', 'fas');
+                            s.classList.add('text-amber-500');
+                        } else {
+                            s.classList.replace('fas', 'far');
+                            s.classList.remove('text-amber-500');
+                        }
+                    });
+                };
+            });
         }
 
         function updatePreview() {
@@ -632,6 +957,11 @@
             document.getElementById('image-preview-thumbnail').classList.add('hidden');
             document.getElementById('preview-img-display').classList.add('hidden');
             document.getElementById('preview-placeholder').classList.remove('hidden');
+            currentRatingInput = 5;
+            document.querySelectorAll('.star-btn').forEach(s => {
+                s.classList.replace('fas', 'far');
+                s.classList.remove('text-amber-500');
+            });
         }
 
         function toggleLoading(show, text = "") {
