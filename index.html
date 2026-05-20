@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VaultOS - Dark Fantasy Cloud Sync</title>
+    <!-- 骷髏 Favicon 數據連結，一舉消滅 Favicon 404 錯誤 -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💀</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Identity Services -->
@@ -486,8 +488,15 @@
                     callback: (tokenResponse) => {
                         if (tokenResponse.error !== undefined) {
                             console.error("Google Auth Error:", tokenResponse);
-                            showToast("驗證錯誤: " + (tokenResponse.error_description || tokenResponse.error));
                             toggleLoading(false);
+                            // 智慧判斷彈窗關閉錯誤，無縫導向虛擬模擬器
+                            if (tokenResponse.error === 'popup_closed' || tokenResponse.error === 'popup_closed_by_user') {
+                                showToast("檢測到視窗關閉，已自動啟用虛擬雲端！");
+                                localStorage.setItem('vault_gsi_simulator', 'true');
+                                setTimeout(() => { simulateLogin(); }, 800);
+                            } else {
+                                showToast("驗證錯誤: " + (tokenResponse.error_description || tokenResponse.error));
+                            }
                             return;
                         }
                         accessToken = tokenResponse.access_token;
@@ -496,13 +505,10 @@
                     error_callback: (err) => {
                         // 這裡就是關鍵的 _.zd 內部建構子捕獲。我們轉化為友善的 UI 通知
                         console.warn("Google API 執行階段提示 (此環境可能不支援彈窗認證):", err);
-                        
-                        let displayErr = "沙盒安全原則限制 (Sandbox Restrictions)";
-                        if (err && typeof err === 'object') {
-                            displayErr = err.message || err.details || displayErr;
-                        }
-                        showToast(`Comm Error: ${displayErr}`);
                         toggleLoading(false);
+                        showToast("檢測到沙盒限制，自動開啟虛擬雲端備援！");
+                        localStorage.setItem('vault_gsi_simulator', 'true');
+                        setTimeout(() => { simulateLogin(); }, 800);
                     }
                 });
             } catch (err) {
@@ -519,21 +525,31 @@
 
             const savedId = localStorage.getItem('vault_gsi_client_id');
             if (!savedId) {
-                showToast("請點擊齒輪設定您的 Google Client ID 或開啟雲端模擬");
-                showSettingsModal();
+                showToast("未配置 Client ID，已為您自動啟用虛擬雲端！");
+                localStorage.setItem('vault_gsi_simulator', 'true');
+                setTimeout(() => { simulateLogin(); }, 500);
                 return;
             }
 
             if (!tokenClient) {
                 initGoogleAuth();
-                if (!tokenClient) return showToast("SDK 授權失敗，請確認您的 Client ID 是否正確");
+                if (!tokenClient) {
+                    showToast("SDK 初始化失敗，自動啟用虛擬雲端備援！");
+                    localStorage.setItem('vault_gsi_simulator', 'true');
+                    setTimeout(() => { simulateLogin(); }, 500);
+                    return;
+                }
             }
             
             try {
+                toggleLoading(true, "COMMUNING_WITH_GOOGLE...");
                 tokenClient.requestAccessToken({prompt: 'consent'});
             } catch (e) {
                 console.error("Request Token Error:", e);
-                showToast("開啟登入視窗失敗，請確認彈出視窗未被阻擋");
+                toggleLoading(false);
+                showToast("彈出視窗請求失敗，已自動切換至虛擬雲端！");
+                localStorage.setItem('vault_gsi_simulator', 'true');
+                setTimeout(() => { simulateLogin(); }, 500);
             }
         }
 
@@ -866,6 +882,20 @@
                 setFocusItem(collections[0]);
             }
             if (accessToken) uploadToCloud();
+        }
+
+        // 偵測是否被 iframe / 彈出視窗攔截或使用者關閉
+        function checkPopupFailure(err) {
+            const errStr = (err && err.message) ? err.message : String(err);
+            if (errStr.includes("closed") || errStr.includes("blocked") || errStr.includes("popup")) {
+                console.warn("[VaultOS 智慧自動備援] 偵測到 iframe/彈出視窗錯誤，已自動無縫引導至模擬雲端環境！", err);
+                toggleLoading(false);
+                showToast("檢測到瀏覽器沙盒限制，自動開啟虛擬雲端備援！");
+                localStorage.setItem('vault_gsi_simulator', 'true');
+                setTimeout(() => { simulateLogin(); }, 800);
+                return true;
+            }
+            return false;
         }
 
         function saveLocal() {
